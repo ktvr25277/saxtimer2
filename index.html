@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>SAX PRO</title>
-    <!-- Home Screen Icon (Soprano Saxophone) -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23050505'/%3E%3Cpath d='M85 30 L95 30 L97 130 L102 145 C105 155 95 160 90 160 C85 160 75 155 78 145 L83 130 Z' fill='%23eab308'/%3E%3Ccircle cx='86' cy='50' r='3' fill='%23ca8a04'/%3E%3Ccircle cx='94' cy='65' r='3' fill='%23ca8a04'/%3E%3Ccircle cx='86' cy='80' r='3' fill='%23ca8a04'/%3E%3Ccircle cx='94' cy='95' r='3' fill='%23ca8a04'/%3E%3Ccircle cx='88' cy='115' r='4' fill='%23ca8a04'/%3E%3Cpath d='M83 130 Q90 135 97 130' fill='none' stroke='%23422006' stroke-width='1'/%3E%3C/svg%3E" />
+    <!-- Home Screen Icon (Soprano Saxophone Icon Optimized for iOS) -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23050505'/%3E%3C!-- Saxophone Body --%3E%3Cpath d='M82 35 L98 35 L102 125 L110 145 C115 155 105 165 90 165 C75 165 65 155 70 145 L78 125 Z' fill='%23eab308'/%3E%3C!-- Mouthpiece --%3E%3Crect x='86' y='25' width='8' height='12' rx='1' fill='%2327272a'/%3E%3C!-- Keys --%3E%3Ccircle cx='82' cy='55' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='70' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='82' cy='85' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='100' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='84' cy='115' r='5' fill='%23ca8a04'/%3E%3Ccircle cx='96' cy='125' r='5' fill='%23ca8a04'/%3E%3C!-- Reflections --%3E%3Cpath d='M88 40 L92 40 L94 120 L86 120 Z' fill='%23fde047' fill-opacity='0.3'/%3E%3C/svg%3E" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -50,22 +50,18 @@
         font-family: 'Inter', sans-serif;
         overscroll-behavior-y: none;
       }
-      /* Custom Safe Area Utility since Tailwind might not catch env() correctly in JIT without config */
       .pt-safe {
         padding-top: env(safe-area-inset-top, 20px);
       }
       .pb-safe {
         padding-bottom: env(safe-area-inset-bottom, 20px);
       }
-      
-      /* Hide scrollbar for Chrome, Safari and Opera */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
       }
-      /* Hide scrollbar for IE, Edge and Firefox */
       .no-scrollbar {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     </style>
   <script type="importmap">
