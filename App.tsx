@@ -239,6 +239,36 @@ function App() {
     return ((total - timeLeft) / total) * 100;
   };
 
+  // Helper to determine the main button color based on "Next State"
+  const getMainButtonColor = () => {
+    if (isPaused) return 'bg-brass-500 shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:bg-brass-400';
+    
+    // If practicing, next is BREAK (Green)
+    if (status === TimerStatus.PRACTICE || status === TimerStatus.PRACTICE_OVERTIME) {
+      return 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:bg-emerald-400';
+    }
+    
+    // If idle or break, next is PRACTICE (Yellow/Brass)
+    return 'bg-brass-500 shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:bg-brass-400';
+  };
+
+  // Stats Editing Handlers
+  const handleUpdateToday = (newSeconds: number) => {
+    const diff = newSeconds - stats.todaySeconds;
+    setStats(s => ({
+      ...s,
+      todaySeconds: newSeconds,
+      totalSeconds: Math.max(0, s.totalSeconds + diff) // Keep them in sync
+    }));
+  };
+
+  const handleUpdateTotal = (newSeconds: number) => {
+    setStats(s => ({
+      ...s,
+      totalSeconds: newSeconds
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-piano text-zinc-100 flex flex-col items-center overflow-x-hidden relative">
       
@@ -277,6 +307,8 @@ function App() {
         <PracticeLog 
           todaySeconds={stats.todaySeconds} 
           totalSeconds={stats.totalSeconds} 
+          onUpdateToday={handleUpdateToday}
+          onUpdateTotal={handleUpdateTotal}
         />
 
         {/* Metronome */}
@@ -306,7 +338,7 @@ function App() {
          {/* MAIN ACTION (Context Aware) */}
          <button 
             onClick={handleMainAction}
-            className="w-16 h-16 rounded-full bg-brass-500 text-black flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:bg-brass-400 active:scale-95 transition-all"
+            className={`w-16 h-16 rounded-full text-black flex items-center justify-center active:scale-95 transition-all ${getMainButtonColor()}`}
          >
             {isPaused ? <Play size={28} className="ml-1" /> : (
               (status === TimerStatus.IDLE) ? <Play size={28} className="ml-1" /> :
