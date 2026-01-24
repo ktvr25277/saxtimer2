@@ -48,6 +48,14 @@
         font-family: 'Inter', sans-serif;
         overscroll-behavior-y: none;
       }
+      /* Custom Safe Area Utility since Tailwind might not catch env() correctly in JIT without config */
+      .pt-safe {
+        padding-top: env(safe-area-inset-top, 20px);
+      }
+      .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+      }
+      
       /* Hide scrollbar for Chrome, Safari and Opera */
       .no-scrollbar::-webkit-scrollbar {
         display: none;

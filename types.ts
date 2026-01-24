@@ -1,12 +1,21 @@
 export enum TimerStatus {
   IDLE = 'IDLE',
   PRACTICE = 'PRACTICE',
-  BREAK = 'BREAK'
+  PRACTICE_OVERTIME = 'PRACTICE_OVERTIME',
+  BREAK = 'BREAK',
+  BREAK_OVERTIME = 'BREAK_OVERTIME',
+  PAUSED = 'PAUSED' // Meta state, usually handled alongside a previous state
 }
 
 export enum SoundType {
   HIGH = 'HIGH',
   LOW = 'LOW'
+}
+
+export enum AlarmType {
+  DIGITAL = 'DIGITAL',
+  GONG = 'GONG',
+  CHORD = 'CHORD'
 }
 
 export interface PracticeStats {

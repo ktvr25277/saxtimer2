@@ -1,140 +1,275 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TimerStatus, PracticeStats } from './types';
+import { TimerStatus, PracticeStats, AlarmType } from './types';
 import { PRACTICE_DURATION, BREAK_DURATION } from './constants';
 import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
-import { Music } from 'lucide-react';
+import { AlarmEngine } from './services/audioService';
+import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
+const SETTINGS_KEY = 'sax-pro-settings';
 
 function App() {
-  // Timer State
+  // --- STATE ---
   const [status, setStatus] = useState<TimerStatus>(TimerStatus.IDLE);
   const [timeLeft, setTimeLeft] = useState(PRACTICE_DURATION);
+  const [overtimeSeconds, setOvertimeSeconds] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   
-  // Stats State
+  // Settings
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
+  const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
+
+  // Stats
   const [stats, setStats] = useState<PracticeStats>({
     todaySeconds: 0,
     totalSeconds: 0,
     lastPracticeDate: new Date().toISOString().split('T')[0]
   });
 
+  // Refs
   const timerRef = useRef<number | null>(null);
+  const alarmEngine = useRef<AlarmEngine | null>(null);
+  const wakeLockSentinel = useRef<WakeLockSentinel | null>(null);
 
-  // Load stats on mount
+  // --- LIFECYCLE & HELPERS ---
+
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed: PracticeStats = JSON.parse(saved);
+    // Init Audio Engine
+    alarmEngine.current = new AlarmEngine();
+    
+    // Load persisted data
+    const savedStats = localStorage.getItem(STORAGE_KEY);
+    if (savedStats) {
+      const parsed: PracticeStats = JSON.parse(savedStats);
       const today = new Date().toISOString().split('T')[0];
-      
-      // Reset daily stats if it's a new day
       if (parsed.lastPracticeDate !== today) {
-        setStats({
-          ...parsed,
-          todaySeconds: 0,
-          lastPracticeDate: today
-        });
+        setStats({ ...parsed, todaySeconds: 0, lastPracticeDate: today });
       } else {
         setStats(parsed);
       }
     }
+    const savedSettings = localStorage.getItem(SETTINGS_KEY);
+    if (savedSettings) {
+      const { alarm, wakeLock } = JSON.parse(savedSettings);
+      if (alarm) setSelectedAlarm(alarm);
+      if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
+    }
   }, []);
 
-  // Save stats on change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
   }, [stats]);
 
-  // Timer Logic
   useEffect(() => {
-    if (status !== TimerStatus.IDLE) {
-      timerRef.current = window.setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleCycleComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ alarm: selectedAlarm, wakeLock: wakeLockEnabled }));
+  }, [selectedAlarm, wakeLockEnabled]);
 
-        // Update stats only during practice
-        if (status === TimerStatus.PRACTICE) {
-          setStats(prev => ({
-            ...prev,
-            todaySeconds: prev.todaySeconds + 1,
-            totalSeconds: prev.totalSeconds + 1
-          }));
+  // Wake Lock Logic
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && wakeLockEnabled && status !== TimerStatus.IDLE) {
+        requestWakeLock();
+      }
+    };
+
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && wakeLockEnabled) {
+        try {
+          wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.log('Wake Lock request failed:', err);
         }
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLockSentinel.current) {
+        await wakeLockSentinel.current.release();
+        wakeLockSentinel.current = null;
+      }
+    };
+
+    if (wakeLockEnabled && status !== TimerStatus.IDLE && !isPaused) {
+      requestWakeLock();
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    } else {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
+
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [wakeLockEnabled, status, isPaused]);
+
+
+  // --- TIMER LOGIC ---
+
+  useEffect(() => {
+    if (status === TimerStatus.IDLE || isPaused) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    timerRef.current = window.setInterval(() => {
+      
+      // PRACTICE COUNTDOWN
+      if (status === TimerStatus.PRACTICE) {
+        if (timeLeft > 0) {
+          setTimeLeft(t => t - 1);
+          setStats(s => ({ ...s, todaySeconds: s.todaySeconds + 1, totalSeconds: s.totalSeconds + 1 }));
+        } else {
+          // Time is up -> Trigger Overtime
+          triggerAlarm();
+          setStatus(TimerStatus.PRACTICE_OVERTIME);
+          setOvertimeSeconds(0);
+        }
+      } 
+      // BREAK COUNTDOWN
+      else if (status === TimerStatus.BREAK) {
+        if (timeLeft > 0) {
+          setTimeLeft(t => t - 1);
+        } else {
+          // Break is up -> Trigger Overtime
+          triggerAlarm();
+          setStatus(TimerStatus.BREAK_OVERTIME);
+          setOvertimeSeconds(0);
+        }
+      }
+      // OVERTIME COUNTING (Both Practice and Break)
+      else if (status === TimerStatus.PRACTICE_OVERTIME || status === TimerStatus.BREAK_OVERTIME) {
+        setOvertimeSeconds(s => s + 1);
+        // We also count practice overtime towards total stats? Usually yes.
+        if (status === TimerStatus.PRACTICE_OVERTIME) {
+          setStats(s => ({ ...s, todaySeconds: s.todaySeconds + 1, totalSeconds: s.totalSeconds + 1 }));
+        }
+      }
+
+    }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, timeLeft, isPaused]);
 
-  const handleCycleComplete = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    
-    // Play a gentle notification sound (optional, kept simple for now)
-    
-    if (status === TimerStatus.PRACTICE) {
-      setStatus(TimerStatus.BREAK);
-      setTimeLeft(BREAK_DURATION);
-    } else if (status === TimerStatus.BREAK) {
-      setStatus(TimerStatus.PRACTICE);
-      setTimeLeft(PRACTICE_DURATION);
+  // --- ACTIONS ---
+
+  const triggerAlarm = () => {
+    if (alarmEngine.current) {
+      alarmEngine.current.play(selectedAlarm, true); // Loop alarm
     }
   };
 
-  const toggleTimer = () => {
-    if (status === TimerStatus.IDLE) {
-      setStatus(TimerStatus.PRACTICE);
-    } else {
-      setStatus(TimerStatus.IDLE);
-      // Reset logic could go here if we want stop to mean 'reset'
-      // For now, it's 'Pause'. To reset, maybe long press or separate button?
-      // Keeping it simple: IDLE acts as Pause.
+  const stopAlarm = () => {
+    if (alarmEngine.current) {
+      alarmEngine.current.stop();
     }
+  };
+
+  const handleMainAction = () => {
+    stopAlarm(); // Stop alarm if playing
+
+    if (isPaused) {
+      setIsPaused(false);
+      return;
+    }
+
+    switch (status) {
+      case TimerStatus.IDLE:
+        setStatus(TimerStatus.PRACTICE);
+        setTimeLeft(PRACTICE_DURATION);
+        break;
+      case TimerStatus.PRACTICE:
+        // Skip straight to break? Or stop? Let's assume skip to break for convenience
+        setStatus(TimerStatus.BREAK);
+        setTimeLeft(BREAK_DURATION);
+        break;
+      case TimerStatus.PRACTICE_OVERTIME:
+        // "Start Break"
+        setStatus(TimerStatus.BREAK);
+        setTimeLeft(BREAK_DURATION);
+        setOvertimeSeconds(0);
+        break;
+      case TimerStatus.BREAK:
+        // Skip break? Back to practice
+        setStatus(TimerStatus.PRACTICE);
+        setTimeLeft(PRACTICE_DURATION);
+        break;
+      case TimerStatus.BREAK_OVERTIME:
+        // "Resume Practice"
+        setStatus(TimerStatus.PRACTICE);
+        setTimeLeft(PRACTICE_DURATION);
+        setOvertimeSeconds(0);
+        break;
+    }
+  };
+
+  const handlePause = () => {
+    stopAlarm();
+    setIsPaused(true);
+  };
+
+  const handleStop = () => {
+    stopAlarm();
+    setIsPaused(false);
+    setStatus(TimerStatus.IDLE);
+    setTimeLeft(PRACTICE_DURATION);
+    setOvertimeSeconds(0);
+  };
+
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
+    // Stop test sound if playing
+    stopAlarm(); 
+  };
+
+  const testAlarm = (type: AlarmType) => {
+    stopAlarm();
+    if (alarmEngine.current) alarmEngine.current.play(type, false);
   };
 
   const getProgress = () => {
-    const total = status === TimerStatus.BREAK ? BREAK_DURATION : PRACTICE_DURATION;
+    if (status === TimerStatus.PRACTICE_OVERTIME || status === TimerStatus.BREAK_OVERTIME) return 100;
+    const total = (status === TimerStatus.BREAK) ? BREAK_DURATION : PRACTICE_DURATION;
     return ((total - timeLeft) / total) * 100;
   };
 
   return (
-    <div className="min-h-screen bg-piano text-zinc-100 flex flex-col items-center pb-safe-area-bottom pt-safe-area-top overflow-x-hidden">
+    <div className="min-h-screen bg-piano text-zinc-100 flex flex-col items-center overflow-x-hidden relative">
       
+      {/* Top Background Gradient */}
+      <div className="absolute top-[-20%] left-[-20%] w-[50%] h-[50%] bg-brass-900/10 blur-[120px] rounded-full pointer-events-none z-0" />
+
       {/* Header */}
-      <header className="w-full p-6 flex justify-between items-center z-10">
-        <div className="flex items-center gap-2">
+      <header className="w-full px-6 pt-safe pb-4 flex justify-between items-center z-10 bg-gradient-to-b from-black to-transparent">
+        <div className="flex items-center gap-2 mt-4"> {/* Added mt-4 for extra notch clearance */}
            <div className="w-8 h-8 rounded bg-gradient-to-tr from-brass-600 to-brass-300 flex items-center justify-center shadow-lg shadow-brass-500/20">
               <Music size={18} className="text-black" />
            </div>
            <h1 className="text-xl font-serif font-bold tracking-wider text-brass-400">SAX PRO</h1>
         </div>
-        <div className="text-xs text-zinc-600 font-mono border border-zinc-800 px-2 py-1 rounded">
-          v1.0
-        </div>
+        <button onClick={toggleSettings} className="p-2 text-zinc-500 hover:text-brass-400 mt-4">
+          <Settings size={24} />
+        </button>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-md px-6 flex flex-col gap-8 items-center">
+      {/* Main Content */}
+      <main className="flex-1 w-full max-w-md px-6 flex flex-col gap-4 items-center z-0 pb-32"> {/* Added padding bottom for fixed footer */}
         
-        {/* Timer Section */}
-        <div className="mt-4">
+        {/* Timer */}
+        <div className="mt-2">
           <CircularTimer 
             progress={getProgress()} 
             timeLeft={timeLeft} 
+            overtimeSeconds={overtimeSeconds}
             status={status}
-            toggleTimer={toggleTimer}
+            mainAction={handleMainAction}
+            isPaused={isPaused}
           />
         </div>
 
@@ -150,15 +285,111 @@ function App() {
         </div>
 
         {/* AI Advice */}
-        <div className="w-full mb-8">
+        <div className="w-full">
           <AdviceWidget totalSeconds={stats.totalSeconds} />
         </div>
-
       </main>
 
-      {/* Aesthetic Background Gradients */}
-      <div className="fixed top-[-20%] left-[-20%] w-[50%] h-[50%] bg-brass-900/10 blur-[120px] rounded-full pointer-events-none z-0" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-zinc-800/20 blur-[100px] rounded-full pointer-events-none z-0" />
+      {/* Fixed Footer Controls */}
+      <div className="fixed bottom-0 left-0 w-full pb-safe pt-4 px-6 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 z-20 flex justify-center gap-8 items-center h-24">
+         
+         {/* STOP/RESET */}
+         <button 
+           onClick={handleStop}
+           disabled={status === TimerStatus.IDLE}
+           className={`flex flex-col items-center gap-1 transition-colors ${status === TimerStatus.IDLE ? 'text-zinc-700' : 'text-zinc-400 hover:text-red-400'}`}
+         >
+           <StopCircle size={32} />
+           <span className="text-[10px] uppercase tracking-widest font-bold">完全終了</span>
+         </button>
+
+         {/* MAIN ACTION (Context Aware) */}
+         <button 
+            onClick={handleMainAction}
+            className="w-16 h-16 rounded-full bg-brass-500 text-black flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:bg-brass-400 active:scale-95 transition-all"
+         >
+            {isPaused ? <Play size={28} className="ml-1" /> : (
+              (status === TimerStatus.IDLE) ? <Play size={28} className="ml-1" /> :
+              (status === TimerStatus.PRACTICE || status === TimerStatus.PRACTICE_OVERTIME) ? 
+                <span className="text-[10px] font-bold tracking-tighter">休憩開始</span> :
+              (status === TimerStatus.BREAK || status === TimerStatus.BREAK_OVERTIME) ? 
+                <span className="text-[10px] font-bold tracking-tighter">練習再開</span> :
+              <Play size={28} className="ml-1" />
+            )}
+         </button>
+
+         {/* PAUSE */}
+         <button 
+           onClick={handlePause}
+           disabled={status === TimerStatus.IDLE || isPaused}
+           className={`flex flex-col items-center gap-1 transition-colors ${status === TimerStatus.IDLE || isPaused ? 'text-zinc-700' : 'text-zinc-400 hover:text-brass-400'}`}
+         >
+           <Pause size={32} />
+           <span className="text-[10px] uppercase tracking-widest font-bold">一時停止</span>
+         </button>
+      </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm" onClick={toggleSettings}>
+          <div className="w-full max-w-sm bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-3xl sm:rounded-2xl shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-serif text-brass-400">Settings</h2>
+              <button onClick={toggleSettings} className="text-zinc-500">Close</button>
+            </div>
+
+            {/* Alarm Settings */}
+            <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Alarm Sound</label>
+              <div className="space-y-2">
+                {[AlarmType.DIGITAL, AlarmType.GONG, AlarmType.CHORD].map(type => (
+                  <div key={type} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" 
+                        name="alarm" 
+                        checked={selectedAlarm === type} 
+                        onChange={() => setSelectedAlarm(type)}
+                        className="accent-brass-500 w-4 h-4"
+                      />
+                      <span className="text-zinc-200 capitalize text-sm">{type.toLowerCase()}</span>
+                    </div>
+                    <button onClick={() => testAlarm(type)} className="text-zinc-500 hover:text-brass-400">
+                      <Volume2 size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Wake Lock Settings */}
+            <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Power</label>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                 <div className="flex items-center gap-3">
+                   <div className={`p-2 rounded-full ${wakeLockEnabled ? 'bg-brass-500/20 text-brass-400' : 'bg-zinc-700/50 text-zinc-500'}`}>
+                     <BatteryCharging size={18} />
+                   </div>
+                   <div className="flex flex-col">
+                     <span className="text-zinc-200 text-sm">Prevent Sleep</span>
+                     <span className="text-[10px] text-zinc-500">Keep screen on during practice</span>
+                   </div>
+                 </div>
+                 <button 
+                   onClick={() => setWakeLockEnabled(!wakeLockEnabled)}
+                   className={`w-12 h-6 rounded-full transition-colors relative ${wakeLockEnabled ? 'bg-brass-500' : 'bg-zinc-700'}`}
+                 >
+                   <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${wakeLockEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                 </button>
+              </div>
+            </div>
+
+            <div className="pt-2 text-center text-xs text-zinc-600">
+               SAX PRO v1.1
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

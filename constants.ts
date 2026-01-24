@@ -29,5 +29,8 @@ export const FALLBACK_ADVICE = [
 export const STATUS_LABELS: Record<TimerStatus, string> = {
   [TimerStatus.IDLE]: "READY",
   [TimerStatus.PRACTICE]: "PRACTICE",
-  [TimerStatus.BREAK]: "BREAK"
+  [TimerStatus.PRACTICE_OVERTIME]: "OVERTIME",
+  [TimerStatus.BREAK]: "BREAK",
+  [TimerStatus.BREAK_OVERTIME]: "OVERTIME",
+  [TimerStatus.PAUSED]: "PAUSED"
 };
