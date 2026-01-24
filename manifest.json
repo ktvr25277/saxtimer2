@@ -1,0 +1,16 @@
+{
+  "name": "SAX PRO",
+  "short_name": "SAX PRO",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#eab308",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0a'/%3E%3Cpath d='M82 35 L98 35 L102 125 L110 145 C115 155 105 165 90 165 C75 165 65 155 70 145 L78 125 Z' fill='%23facc15'/%3E%3Crect x='86' y='25' width='8' height='12' rx='1' fill='%2327272a'/%3E%3Ccircle cx='82' cy='55' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='70' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='82' cy='85' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='100' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='84' cy='115' r='5' fill='%23ca8a04'/%3E%3Ccircle cx='96' cy='125' r='5' fill='%23ca8a04'/%3E%3Cpath d='M88 40 L92 40 L94 120 L86 120 Z' fill='%23ffffff' fill-opacity='0.2'/%3E%3C/svg%3E",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

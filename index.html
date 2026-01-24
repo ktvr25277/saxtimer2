@@ -6,9 +6,15 @@
     <meta name="theme-color" content="#09090b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SAX PRO" />
     <title>SAX PRO</title>
-    <!-- Home Screen Icon (Soprano Saxophone Icon Optimized for iOS) -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23050505'/%3E%3C!-- Saxophone Body --%3E%3Cpath d='M82 35 L98 35 L102 125 L110 145 C115 155 105 165 90 165 C75 165 65 155 70 145 L78 125 Z' fill='%23eab308'/%3E%3C!-- Mouthpiece --%3E%3Crect x='86' y='25' width='8' height='12' rx='1' fill='%2327272a'/%3E%3C!-- Keys --%3E%3Ccircle cx='82' cy='55' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='70' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='82' cy='85' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='100' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='84' cy='115' r='5' fill='%23ca8a04'/%3E%3Ccircle cx='96' cy='125' r='5' fill='%23ca8a04'/%3E%3C!-- Reflections --%3E%3Cpath d='M88 40 L92 40 L94 120 L86 120 Z' fill='%23fde047' fill-opacity='0.3'/%3E%3C/svg%3E" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json" />
+
+    <!-- Home Screen Icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0a'/%3E%3C!-- Sax Body --%3E%3Cpath d='M82 35 L98 35 L102 125 L110 145 C115 155 105 165 90 165 C75 165 65 155 70 145 L78 125 Z' fill='%23facc15'/%3E%3C!-- Mouthpiece --%3E%3Crect x='86' y='25' width='8' height='12' rx='1' fill='%2327272a'/%3E%3C!-- Keys --%3E%3Ccircle cx='82' cy='55' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='70' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='82' cy='85' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='98' cy='100' r='4' fill='%23ca8a04'/%3E%3Ccircle cx='84' cy='115' r='5' fill='%23ca8a04'/%3E%3Ccircle cx='96' cy='125' r='5' fill='%23ca8a04'/%3E%3C!-- Shine --%3E%3Cpath d='M88 40 L92 40 L94 120 L86 120 Z' fill='%23ffffff' fill-opacity='0.2'/%3E%3C/svg%3E" />
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -18,8 +24,8 @@
               brass: {
                 300: '#fde047',
                 400: '#facc15',
-                500: '#eab308', // Base Gold
-                600: '#ca8a04', // Darker Gold
+                500: '#eab308',
+                600: '#ca8a04',
                 900: '#422006',
               },
               piano: '#050505',
