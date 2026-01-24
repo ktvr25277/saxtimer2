@@ -1,7 +1,6 @@
 {
   "name": "SAX PRO",
   "short_name": "SAX PRO",
-  "start_url": ".",
   "display": "standalone",
   "background_color": "#050505",
   "theme_color": "#eab308",
