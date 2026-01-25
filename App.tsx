@@ -5,6 +5,7 @@ import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
+import { TunerWidget } from './components/TunerWidget';
 import { AlarmEngine, MetronomeEngine } from './services/audioService';
 import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging, Clock } from 'lucide-react';
 
@@ -366,8 +367,8 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 w-full max-w-md px-6 flex flex-col gap-4 items-center z-0 pb-32"> {/* Added padding bottom for fixed footer */}
         
-        {/* Timer */}
-        <div className="mt-2">
+        {/* Timer Area with Tuner */}
+        <div className="mt-2 relative w-full flex justify-center">
           <CircularTimer 
             progress={getProgress()} 
             timeLeft={timeLeft} 
@@ -376,6 +377,10 @@ function App() {
             mainAction={handleMainAction}
             isPaused={isPaused}
           />
+          {/* Tuner Widget: Positioned to the right of the timer, vertically centered */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20">
+             <TunerWidget />
+          </div>
         </div>
 
         {/* Stats */}
@@ -550,7 +555,7 @@ function App() {
             </div>
 
             <div className="pt-2 text-center text-xs text-zinc-600">
-               SAX PRO v1.2
+               SAX PRO v1.3
             </div>
           </div>
         </div>

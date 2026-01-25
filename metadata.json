@@ -1,5 +1,7 @@
 {
   "name": "SAX PRO",
   "description": "A premium practice assistant for Soprano Saxophone players featuring a cycle timer, professional metronome, and AI-powered advice.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
