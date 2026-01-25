@@ -119,6 +119,19 @@ export class AlarmEngine {
     }
   }
 
+  // iOS Fix: Call this on user interaction (button click) to unlock AudioContext
+  public prepare() {
+    this.initContext();
+    if (this.audioContext) {
+      // Create a short silent buffer and play it to unlock the context on iOS
+      const buffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start(0);
+    }
+  }
+
   public play(type: AlarmType, loop: boolean = false) {
     this.initContext();
     if (!this.audioContext) return;

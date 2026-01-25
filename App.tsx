@@ -222,6 +222,11 @@ function App() {
   const handleMainAction = () => {
     stopAlarm(); // Stop alarm if playing
 
+    // iOS fix: Prepare audio engine on user interaction
+    if (alarmEngine.current) {
+      alarmEngine.current.prepare();
+    }
+
     if (isPaused) {
       setIsPaused(false);
       return;
@@ -280,6 +285,10 @@ function App() {
     setShowSettings(!showSettings);
     // Stop test sound if playing
     stopAlarm(); 
+    // Prepare alarm on settings open too, just in case user is testing
+    if (alarmEngine.current) {
+      alarmEngine.current.prepare();
+    }
   };
 
   const testAlarm = (type: AlarmType) => {
