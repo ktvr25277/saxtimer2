@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TunerEngine, TunerResult } from '../services/tunerService';
-import { Mic, MicOff, Activity } from 'lucide-react';
+import { Mic, Activity } from 'lucide-react';
+
+const KATAKANA_NOTES = ["ド", "ド♯", "レ", "レ♯", "ミ", "ファ", "ファ♯", "ソ", "ソ♯", "ラ", "ラ♯", "シ"];
 
 export const TunerWidget: React.FC = () => {
   const [isOn, setIsOn] = useState(false);
-  const [result, setResult] = useState<TunerResult>({ note: '-', cents: 0, frequency: 0, isActive: false });
+  const [result, setResult] = useState<TunerResult>({ noteIndex: -1, cents: 0, frequency: 0, isActive: false });
   const engineRef = useRef<TunerEngine | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,16 @@ export const TunerWidget: React.FC = () => {
     return 50 + clamped; // Simple percentage center is 50
   };
 
+  const getNoteLabel = (index: number) => {
+    if (index === -1) return '-';
+    // Transpose for Bb Instrument (Soprano Sax)
+    // Concert C (Index 0) -> Sax D (Index 2)
+    // Concert Bb (Index 10) -> Sax C (Index 0)
+    // Formula: (ConcertIndex + 2) % 12
+    const transposedIndex = (index + 2) % 12;
+    return KATAKANA_NOTES[transposedIndex];
+  };
+
   return (
     <div className="flex flex-col items-center gap-2">
       <button 
@@ -73,7 +85,7 @@ export const TunerWidget: React.FC = () => {
       `}>
          {/* Note Name */}
          <div className={`text-3xl font-bold font-sans ${getCentsColor(result.cents)}`}>
-            {result.note}
+            {getNoteLabel(result.noteIndex)}
          </div>
          
          {/* Cents Bar */}
@@ -83,13 +95,13 @@ export const TunerWidget: React.FC = () => {
               className={`absolute top-0 bottom-0 w-2 h-full rounded-full transition-all duration-100 ${Math.abs(result.cents) < 10 ? 'bg-emerald-400' : 'bg-brass-500'}`}
               style={{ 
                 left: `${getIndicatorPosition(result.cents)}%`,
-                opacity: result.note === '-' ? 0 : 1
+                opacity: result.noteIndex === -1 ? 0 : 1
               }} 
             />
          </div>
          
          <div className="text-[10px] text-zinc-500 mt-1 font-mono">
-            {result.note !== '-' ? `${result.cents > 0 ? '+' : ''}${result.cents}¢` : 'Ready'}
+            {result.noteIndex !== -1 ? `${result.cents > 0 ? '+' : ''}${result.cents}¢` : 'Ready'}
          </div>
       </div>
     </div>

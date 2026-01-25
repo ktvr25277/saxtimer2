@@ -1,11 +1,9 @@
 export interface TunerResult {
-  note: string;
+  noteIndex: number; // 0=C, 1=C#, ..., 11=B. -1 for silence/undefined
   cents: number;
   frequency: number;
   isActive: boolean;
 }
-
-const NOTE_STRINGS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 export class TunerEngine {
   private audioContext: AudioContext | null = null;
@@ -59,7 +57,7 @@ export class TunerEngine {
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.suspend();
     }
-    this.onUpdate({ note: '-', cents: 0, frequency: 0, isActive: false });
+    this.onUpdate({ noteIndex: -1, cents: 0, frequency: 0, isActive: false });
   }
 
   private updatePitch = () => {
@@ -70,12 +68,12 @@ export class TunerEngine {
 
     if (frequency === -1) {
        // No signal or unclear
-       this.onUpdate({ note: '-', cents: 0, frequency: 0, isActive: true });
+       this.onUpdate({ noteIndex: -1, cents: 0, frequency: 0, isActive: true });
     } else {
        const note = this.noteFromPitch(frequency);
        const cents = this.centsOffFromPitch(frequency, note);
-       const noteName = NOTE_STRINGS[note % 12];
-       this.onUpdate({ note: noteName, cents, frequency, isActive: true });
+       const noteIndex = note % 12;
+       this.onUpdate({ noteIndex, cents, frequency, isActive: true });
     }
 
     this.rafId = requestAnimationFrame(this.updatePitch);
