@@ -16,6 +16,10 @@ export class MetronomeEngine {
     if (onBeat) this.onBeatCallback = onBeat;
   }
 
+  public setOnBeat(callback: (beat: number) => void) {
+    this.onBeatCallback = callback;
+  }
+
   public setBpm(bpm: number) {
     this.bpm = bpm;
   }

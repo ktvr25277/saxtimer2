@@ -5,7 +5,7 @@ import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
-import { AlarmEngine } from './services/audioService';
+import { AlarmEngine, MetronomeEngine } from './services/audioService';
 import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
@@ -17,6 +17,7 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(PRACTICE_DURATION);
   const [overtimeSeconds, setOvertimeSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMetronomePlaying, setIsMetronomePlaying] = useState(false);
   
   // Settings
   const [showSettings, setShowSettings] = useState(false);
@@ -33,6 +34,7 @@ function App() {
   // Refs
   const timerRef = useRef<number | null>(null);
   const alarmEngine = useRef<AlarmEngine | null>(null);
+  const metronomeEngine = useRef<MetronomeEngine>(new MetronomeEngine());
   const wakeLockSentinel = useRef<WakeLockSentinel | null>(null);
 
   // --- LIFECYCLE & HELPERS ---
@@ -44,19 +46,44 @@ function App() {
     // Load persisted data
     const savedStats = localStorage.getItem(STORAGE_KEY);
     if (savedStats) {
-      const parsed: PracticeStats = JSON.parse(savedStats);
-      const today = new Date().toISOString().split('T')[0];
-      if (parsed.lastPracticeDate !== today) {
-        setStats({ ...parsed, todaySeconds: 0, lastPracticeDate: today });
-      } else {
-        setStats(parsed);
+      try {
+        const parsed = JSON.parse(savedStats);
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Ensure values are numbers (fallback to 0 if corrupted)
+        const safeTotal = Number(parsed.totalSeconds) || 0;
+        const safeToday = Number(parsed.todaySeconds) || 0;
+        
+        if (parsed.lastPracticeDate !== today) {
+          // New day detected: Reset 'todaySeconds' to 0, but KEEP 'totalSeconds'
+          setStats({
+            todaySeconds: 0,
+            totalSeconds: safeTotal, // Persist the total
+            lastPracticeDate: today
+          });
+        } else {
+          // Same day: Restore everything
+          setStats({
+            todaySeconds: safeToday,
+            totalSeconds: safeTotal,
+            lastPracticeDate: today
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse saved stats:", e);
+        // Fallback to default initial state (all zeros) if parsing fails
       }
     }
+
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
-      const { alarm, wakeLock } = JSON.parse(savedSettings);
-      if (alarm) setSelectedAlarm(alarm);
-      if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
+      try {
+        const { alarm, wakeLock } = JSON.parse(savedSettings);
+        if (alarm) setSelectedAlarm(alarm);
+        if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
+      } catch (e) {
+        console.error("Failed to parse settings:", e);
+      }
     }
   }, []);
 
@@ -160,6 +187,12 @@ function App() {
   // --- ACTIONS ---
 
   const triggerAlarm = () => {
+    // Stop Metronome if playing so alarm is heard
+    if (metronomeEngine.current) {
+      metronomeEngine.current.stop();
+      setIsMetronomePlaying(false);
+    }
+
     if (alarmEngine.current) {
       alarmEngine.current.play(selectedAlarm, true); // Loop alarm
     }
@@ -185,23 +218,19 @@ function App() {
         setTimeLeft(PRACTICE_DURATION);
         break;
       case TimerStatus.PRACTICE:
-        // Skip straight to break? Or stop? Let's assume skip to break for convenience
         setStatus(TimerStatus.BREAK);
         setTimeLeft(BREAK_DURATION);
         break;
       case TimerStatus.PRACTICE_OVERTIME:
-        // "Start Break"
         setStatus(TimerStatus.BREAK);
         setTimeLeft(BREAK_DURATION);
         setOvertimeSeconds(0);
         break;
       case TimerStatus.BREAK:
-        // Skip break? Back to practice
         setStatus(TimerStatus.PRACTICE);
         setTimeLeft(PRACTICE_DURATION);
         break;
       case TimerStatus.BREAK_OVERTIME:
-        // "Resume Practice"
         setStatus(TimerStatus.PRACTICE);
         setTimeLeft(PRACTICE_DURATION);
         setOvertimeSeconds(0);
@@ -211,11 +240,21 @@ function App() {
 
   const handlePause = () => {
     stopAlarm();
+    // Also stop metronome when pausing timer
+    if (metronomeEngine.current) {
+      metronomeEngine.current.stop();
+      setIsMetronomePlaying(false);
+    }
     setIsPaused(true);
   };
 
   const handleStop = () => {
     stopAlarm();
+    // Also stop metronome when stopping session
+    if (metronomeEngine.current) {
+      metronomeEngine.current.stop();
+      setIsMetronomePlaying(false);
+    }
     setIsPaused(false);
     setStatus(TimerStatus.IDLE);
     setTimeLeft(PRACTICE_DURATION);
@@ -231,6 +270,18 @@ function App() {
   const testAlarm = (type: AlarmType) => {
     stopAlarm();
     if (alarmEngine.current) alarmEngine.current.play(type, false);
+  };
+  
+  const handleMetronomeToggle = () => {
+    if (!metronomeEngine.current) return;
+    
+    if (isMetronomePlaying) {
+      metronomeEngine.current.stop();
+      setIsMetronomePlaying(false);
+    } else {
+      metronomeEngine.current.start();
+      setIsMetronomePlaying(true);
+    }
   };
 
   const getProgress = () => {
@@ -313,7 +364,11 @@ function App() {
 
         {/* Metronome */}
         <div className="w-full">
-           <Metronome />
+           <Metronome 
+             engine={metronomeEngine.current}
+             isPlaying={isMetronomePlaying}
+             onToggle={handleMetronomeToggle}
+           />
         </div>
 
         {/* AI Advice */}

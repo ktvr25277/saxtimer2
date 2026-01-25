@@ -1,52 +1,45 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MetronomeEngine } from '../services/audioService';
 import { MIN_BPM, MAX_BPM } from '../constants';
 import { Play, Square } from 'lucide-react';
 
 interface MetronomeProps {
   className?: string;
+  engine: MetronomeEngine | null;
+  isPlaying: boolean;
+  onToggle: () => void;
 }
 
-export const Metronome: React.FC<MetronomeProps> = ({ className }) => {
+export const Metronome: React.FC<MetronomeProps> = ({ 
+  className,
+  engine,
+  isPlaying,
+  onToggle
+}) => {
   const [bpm, setBpm] = useState(60);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [activeBeat, setActiveBeat] = useState<number>(-1); // 0-3
   
-  const engineRef = useRef<MetronomeEngine | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Audio Engine
+  // Connect UI beat visualizer to Engine
   useEffect(() => {
-    engineRef.current = new MetronomeEngine((beat) => {
-      setActiveBeat(beat);
-      // Auto clear active beat for visual blink effect
-      setTimeout(() => setActiveBeat(-1), 150);
-    });
-    engineRef.current.setBpm(60); // Ensure engine matches state
-    return () => {
-      if (engineRef.current) engineRef.current.stop();
-    };
-  }, []);
+    if (engine) {
+      engine.setOnBeat((beat) => {
+        setActiveBeat(beat);
+        // Auto clear active beat for visual blink effect
+        setTimeout(() => setActiveBeat(-1), 150);
+      });
+      // Sync initial BPM
+      engine.setBpm(bpm);
+    }
+  }, [engine]); // Run when engine is available
 
-  // Update Engine BPM
+  // Update Engine BPM when local state changes
   useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.setBpm(bpm);
+    if (engine) {
+      engine.setBpm(bpm);
     }
-  }, [bpm]);
-
-  const toggleMetronome = () => {
-    if (!engineRef.current) return;
-    
-    if (isPlaying) {
-      engineRef.current.stop();
-      setIsPlaying(false);
-      setActiveBeat(-1);
-    } else {
-      engineRef.current.start();
-      setIsPlaying(true);
-    }
-  };
+  }, [bpm, engine]);
 
   // Generate BPM options for the wheel
   const bpmOptions = Array.from({ length: MAX_BPM - MIN_BPM + 1 }, (_, i) => MIN_BPM + i);
@@ -96,7 +89,7 @@ export const Metronome: React.FC<MetronomeProps> = ({ className }) => {
         
         {/* Play Button */}
         <button
-          onClick={toggleMetronome}
+          onClick={onToggle}
           className={`
             w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200
             ${isPlaying 
