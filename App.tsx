@@ -6,7 +6,7 @@ import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
 import { AlarmEngine, MetronomeEngine } from './services/audioService';
-import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging } from 'lucide-react';
+import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging, Clock } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
 const SETTINGS_KEY = 'sax-pro-settings';
@@ -14,12 +14,17 @@ const SETTINGS_KEY = 'sax-pro-settings';
 function App() {
   // --- STATE ---
   const [status, setStatus] = useState<TimerStatus>(TimerStatus.IDLE);
+  
+  // Settings State (Seconds)
+  const [practiceDuration, setPracticeDuration] = useState(PRACTICE_DURATION);
+  const [breakDuration, setBreakDuration] = useState(BREAK_DURATION);
+  
   const [timeLeft, setTimeLeft] = useState(PRACTICE_DURATION);
   const [overtimeSeconds, setOvertimeSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isMetronomePlaying, setIsMetronomePlaying] = useState(false);
   
-  // Settings
+  // Settings UI
   const [showSettings, setShowSettings] = useState(false);
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
@@ -50,19 +55,16 @@ function App() {
         const parsed = JSON.parse(savedStats);
         const today = new Date().toISOString().split('T')[0];
         
-        // Ensure values are numbers (fallback to 0 if corrupted)
         const safeTotal = Number(parsed.totalSeconds) || 0;
         const safeToday = Number(parsed.todaySeconds) || 0;
         
         if (parsed.lastPracticeDate !== today) {
-          // New day detected: Reset 'todaySeconds' to 0, but KEEP 'totalSeconds'
           setStats({
             todaySeconds: 0,
-            totalSeconds: safeTotal, // Persist the total
+            totalSeconds: safeTotal,
             lastPracticeDate: today
           });
         } else {
-          // Same day: Restore everything
           setStats({
             todaySeconds: safeToday,
             totalSeconds: safeTotal,
@@ -71,16 +73,17 @@ function App() {
         }
       } catch (e) {
         console.error("Failed to parse saved stats:", e);
-        // Fallback to default initial state (all zeros) if parsing fails
       }
     }
 
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        const { alarm, wakeLock } = JSON.parse(savedSettings);
+        const { alarm, wakeLock, practice, break: breakTime } = JSON.parse(savedSettings);
         if (alarm) setSelectedAlarm(alarm);
         if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
+        if (typeof practice === 'number') setPracticeDuration(practice);
+        if (typeof breakTime === 'number') setBreakDuration(breakTime);
       } catch (e) {
         console.error("Failed to parse settings:", e);
       }
@@ -92,8 +95,20 @@ function App() {
   }, [stats]);
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ alarm: selectedAlarm, wakeLock: wakeLockEnabled }));
-  }, [selectedAlarm, wakeLockEnabled]);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ 
+      alarm: selectedAlarm, 
+      wakeLock: wakeLockEnabled,
+      practice: practiceDuration,
+      break: breakDuration
+    }));
+  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration]);
+
+  // If settings change while IDLE, update display immediately
+  useEffect(() => {
+    if (status === TimerStatus.IDLE) {
+      setTimeLeft(practiceDuration);
+    }
+  }, [practiceDuration, status]);
 
   // Wake Lock Logic
   useEffect(() => {
@@ -171,7 +186,7 @@ function App() {
       // OVERTIME COUNTING (Both Practice and Break)
       else if (status === TimerStatus.PRACTICE_OVERTIME || status === TimerStatus.BREAK_OVERTIME) {
         setOvertimeSeconds(s => s + 1);
-        // We also count practice overtime towards total stats? Usually yes.
+        // We also count practice overtime towards total stats
         if (status === TimerStatus.PRACTICE_OVERTIME) {
           setStats(s => ({ ...s, todaySeconds: s.todaySeconds + 1, totalSeconds: s.totalSeconds + 1 }));
         }
@@ -215,24 +230,24 @@ function App() {
     switch (status) {
       case TimerStatus.IDLE:
         setStatus(TimerStatus.PRACTICE);
-        setTimeLeft(PRACTICE_DURATION);
+        setTimeLeft(practiceDuration);
         break;
       case TimerStatus.PRACTICE:
         setStatus(TimerStatus.BREAK);
-        setTimeLeft(BREAK_DURATION);
+        setTimeLeft(breakDuration);
         break;
       case TimerStatus.PRACTICE_OVERTIME:
         setStatus(TimerStatus.BREAK);
-        setTimeLeft(BREAK_DURATION);
+        setTimeLeft(breakDuration);
         setOvertimeSeconds(0);
         break;
       case TimerStatus.BREAK:
         setStatus(TimerStatus.PRACTICE);
-        setTimeLeft(PRACTICE_DURATION);
+        setTimeLeft(practiceDuration);
         break;
       case TimerStatus.BREAK_OVERTIME:
         setStatus(TimerStatus.PRACTICE);
-        setTimeLeft(PRACTICE_DURATION);
+        setTimeLeft(practiceDuration);
         setOvertimeSeconds(0);
         break;
     }
@@ -257,7 +272,7 @@ function App() {
     }
     setIsPaused(false);
     setStatus(TimerStatus.IDLE);
-    setTimeLeft(PRACTICE_DURATION);
+    setTimeLeft(practiceDuration);
     setOvertimeSeconds(0);
   };
 
@@ -286,7 +301,7 @@ function App() {
 
   const getProgress = () => {
     if (status === TimerStatus.PRACTICE_OVERTIME || status === TimerStatus.BREAK_OVERTIME) return 100;
-    const total = (status === TimerStatus.BREAK) ? BREAK_DURATION : PRACTICE_DURATION;
+    const total = (status === TimerStatus.BREAK) ? breakDuration : practiceDuration;
     return ((total - timeLeft) / total) * 100;
   };
 
@@ -419,10 +434,64 @@ function App() {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm" onClick={toggleSettings}>
-          <div className="w-full max-w-sm bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-3xl sm:rounded-2xl shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
+          <div className="w-full max-w-sm max-h-[85vh] overflow-y-auto bg-zinc-900 border-t sm:border border-zinc-800 p-6 rounded-t-3xl sm:rounded-2xl shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center sticky top-0 bg-zinc-900 pb-2 z-10 border-b border-zinc-800/50">
               <h2 className="text-xl font-serif text-brass-400">Settings</h2>
               <button onClick={toggleSettings} className="text-zinc-500">Close</button>
+            </div>
+
+            {/* Timer Settings */}
+            <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Durations (Minutes)</label>
+              <div className="space-y-3">
+                
+                {/* Practice Duration */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-brass-500/20 text-brass-400">
+                      <Clock size={18} />
+                    </div>
+                    <span className="text-zinc-200 text-sm">Practice</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="120"
+                      value={Math.floor(practiceDuration / 60)}
+                      onChange={(e) => {
+                         const val = parseInt(e.target.value) || 1;
+                         setPracticeDuration(val * 60);
+                      }}
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-md text-center py-1 text-white font-mono focus:border-brass-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Break Duration */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-emerald-500/20 text-emerald-400">
+                      <Clock size={18} />
+                    </div>
+                    <span className="text-zinc-200 text-sm">Break</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <input 
+                      type="number" 
+                      min="1"
+                      max="60"
+                      value={Math.floor(breakDuration / 60)}
+                      onChange={(e) => {
+                         const val = parseInt(e.target.value) || 1;
+                         setBreakDuration(val * 60);
+                      }}
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-md text-center py-1 text-white font-mono focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+              </div>
             </div>
 
             {/* Alarm Settings */}
@@ -472,7 +541,7 @@ function App() {
             </div>
 
             <div className="pt-2 text-center text-xs text-zinc-600">
-               SAX PRO v1.1
+               SAX PRO v1.2
             </div>
           </div>
         </div>
