@@ -111,10 +111,20 @@ function App() {
     }
   }, [practiceDuration, status]);
 
-  // Wake Lock Logic
+  // Handle Visibility Change (Wake Lock & Audio Resume)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && wakeLockEnabled && status !== TimerStatus.IDLE) {
+      const isVisible = document.visibilityState === 'visible';
+      
+      // 1. Audio Resume Logic
+      if (isVisible) {
+        // Attempt to resume audio contexts when coming back to foreground
+        metronomeEngine.current?.resumeContext();
+        alarmEngine.current?.resumeContext();
+      }
+
+      // 2. Wake Lock Logic
+      if (isVisible && wakeLockEnabled && status !== TimerStatus.IDLE) {
         requestWakeLock();
       }
     };
@@ -138,12 +148,11 @@ function App() {
 
     if (wakeLockEnabled && status !== TimerStatus.IDLE && !isPaused) {
       requestWakeLock();
-      document.addEventListener('visibilitychange', handleVisibilityChange);
     } else {
       releaseWakeLock();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       releaseWakeLock();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -227,6 +236,10 @@ function App() {
     if (alarmEngine.current) {
       alarmEngine.current.prepare();
     }
+    // Also ensure metronome context is healthy
+    if (metronomeEngine.current) {
+       metronomeEngine.current.resumeContext();
+    }
 
     if (isPaused) {
       setIsPaused(false);
@@ -300,6 +313,9 @@ function App() {
   const handleMetronomeToggle = () => {
     if (!metronomeEngine.current) return;
     
+    // Ensure context is ready before toggling
+    metronomeEngine.current.resumeContext();
+
     if (isMetronomePlaying) {
       metronomeEngine.current.stop();
       setIsMetronomePlaying(false);
@@ -555,7 +571,7 @@ function App() {
             </div>
 
             <div className="pt-2 text-center text-xs text-zinc-600">
-               SAX PRO v1.3
+               SAX PRO v1.4
             </div>
           </div>
         </div>

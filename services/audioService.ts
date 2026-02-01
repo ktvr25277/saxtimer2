@@ -24,11 +24,29 @@ export class MetronomeEngine {
     this.bpm = bpm;
   }
 
+  // New method to explicitly resume context (called when app comes to foreground)
+  public async resumeContext() {
+    if (this.audioContext && (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted')) {
+      try {
+        await this.audioContext.resume();
+      } catch (e) {
+        console.error("Failed to resume metronome context:", e);
+      }
+    }
+  }
+
   public start() {
     if (this.isPlaying) return;
 
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Auto-resume on state change (iOS interruption handling)
+      this.audioContext.onstatechange = () => {
+        if ((this.audioContext?.state as string) === 'interrupted' && this.isPlaying) {
+             this.audioContext.resume();
+        }
+      };
     }
 
     if (this.audioContext.state === 'suspended') {
@@ -84,15 +102,28 @@ export class MetronomeEngine {
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
 
     const timeDiff = time - this.audioContext.currentTime;
-    setTimeout(() => {
-        if (this.onBeatCallback && this.isPlaying) {
-            this.onBeatCallback(beatNumber);
-        }
-    }, timeDiff * 1000);
+    // Only callback if reasonable timeDiff (prevent callbacks for very old events)
+    if (timeDiff >= -0.1) {
+        setTimeout(() => {
+            if (this.onBeatCallback && this.isPlaying) {
+                this.onBeatCallback(beatNumber);
+            }
+        }, timeDiff * 1000);
+    }
   }
 
   private scheduler() {
-    while (this.nextNoteTime < (this.audioContext!.currentTime + this.scheduleAheadTime)) {
+    if (!this.audioContext) return;
+
+    // DRIFT CORRECTION:
+    // If the app was backgrounded, nextNoteTime might be way in the past.
+    // If we are lagging more than 0.2s, reset the clock to avoid "machine gun" catch-up effect.
+    if (this.nextNoteTime < this.audioContext.currentTime - 0.2) {
+        this.nextNoteTime = this.audioContext.currentTime + 0.05;
+        this.current16thNote = 0; // Optional: Reset to downbeat on resume
+    }
+
+    while (this.nextNoteTime < (this.audioContext.currentTime + this.scheduleAheadTime)) {
         this.scheduleNote(this.current16thNote, this.nextNoteTime);
         this.nextNote();
     }
@@ -114,7 +145,8 @@ export class AlarmEngine {
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-    if (this.audioContext.state === 'suspended') {
+    // Check state and resume if needed
+    if (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted') {
       this.audioContext.resume();
     }
   }
@@ -129,6 +161,17 @@ export class AlarmEngine {
       source.buffer = buffer;
       source.connect(this.audioContext.destination);
       source.start(0);
+    }
+  }
+
+  // Allow external resume (e.g. on app foreground)
+  public async resumeContext() {
+    if (this.audioContext && (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted')) {
+      try {
+        await this.audioContext.resume();
+      } catch (e) {
+        console.error("Failed to resume alarm context:", e);
+      }
     }
   }
 
