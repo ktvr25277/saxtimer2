@@ -84,7 +84,7 @@ export const TunerWidget: React.FC = () => {
         min-w-[80px]
       `}>
          {/* Note Name */}
-         <div className={`text-3xl font-bold font-sans ${getCentsColor(result.cents)}`}>
+         <div className={`text-3xl font-bold font-sans whitespace-nowrap ${getCentsColor(result.cents)}`}>
             {getNoteLabel(result.noteIndex)}
          </div>
          

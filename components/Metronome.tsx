@@ -17,7 +17,8 @@ export const Metronome: React.FC<MetronomeProps> = ({
   onToggle
 }) => {
   const [bpm, setBpm] = useState(60);
-  const [activeBeat, setActiveBeat] = useState<number>(-1); // 0-3
+  const [beatsPerBar, setBeatsPerBar] = useState(4); // Default to 4 beats
+  const [activeBeat, setActiveBeat] = useState<number>(-1); 
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -29,10 +30,11 @@ export const Metronome: React.FC<MetronomeProps> = ({
         // Auto clear active beat for visual blink effect
         setTimeout(() => setActiveBeat(-1), 150);
       });
-      // Sync initial BPM
+      // Sync initial config
       engine.setBpm(bpm);
+      engine.setBeatsPerBar(beatsPerBar);
     }
-  }, [engine]); // Run when engine is available
+  }, [engine]); 
 
   // Update Engine BPM when local state changes
   useEffect(() => {
@@ -40,6 +42,13 @@ export const Metronome: React.FC<MetronomeProps> = ({
       engine.setBpm(bpm);
     }
   }, [bpm, engine]);
+
+  // Update Engine Beats Per Bar
+  useEffect(() => {
+    if (engine) {
+      engine.setBeatsPerBar(beatsPerBar);
+    }
+  }, [beatsPerBar, engine]);
 
   // Generate BPM options for the wheel
   const bpmOptions = Array.from({ length: MAX_BPM - MIN_BPM + 1 }, (_, i) => MIN_BPM + i);
@@ -70,19 +79,40 @@ export const Metronome: React.FC<MetronomeProps> = ({
 
   return (
     <div className={`flex flex-col items-center w-full ${className}`}>
-      {/* Visual Beats */}
-      <div className="flex gap-4 mb-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`
-              w-3 h-3 rounded-full transition-all duration-75 border border-zinc-700
-              ${activeBeat === i 
-                ? (i === 0 ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-brass-400 shadow-[0_0_8px_#facc15]') 
-                : 'bg-zinc-900'}
-            `}
-          />
-        ))}
+      
+      <div className="flex items-center justify-between w-full max-w-xs mb-2">
+        {/* Visual Beats */}
+        <div className="flex gap-4">
+          {Array.from({ length: beatsPerBar }).map((_, i) => (
+            <div
+              key={i}
+              className={`
+                w-3 h-3 rounded-full transition-all duration-75 border border-zinc-700
+                ${activeBeat === i 
+                  ? (i === 0 ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-brass-400 shadow-[0_0_8px_#facc15]') 
+                  : 'bg-zinc-900'}
+              `}
+            />
+          ))}
+        </div>
+
+        {/* Time Signature Selector */}
+        <div className="flex gap-1">
+          {[2, 3, 4].map(b => (
+            <button
+              key={b}
+              onClick={() => setBeatsPerBar(b)}
+              className={`
+                w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all
+                ${beatsPerBar === b 
+                  ? 'bg-brass-500 text-black shadow-[0_0_8px_rgba(234,179,8,0.4)]' 
+                  : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'}
+              `}
+            >
+              {b}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-8 w-full max-w-xs bg-zinc-900/50 rounded-2xl py-3 border border-zinc-800">

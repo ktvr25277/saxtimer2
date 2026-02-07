@@ -3,12 +3,13 @@ import { AlarmType } from "../types";
 export class MetronomeEngine {
   private audioContext: AudioContext | null = null;
   private isPlaying: boolean = false;
-  private current16thNote: number = 0;
+  private currentBeatIndex: number = 0; // Renamed from current16thNote for clarity
   private nextNoteTime: number = 0.0;
   private timerID: number | undefined;
   private lookahead: number = 25.0; 
   private scheduleAheadTime: number = 0.1; 
   private bpm: number = 60;
+  private beatsPerBar: number = 4; // Default to 4/4
   
   private onBeatCallback: ((beat: number) => void) | null = null;
 
@@ -24,6 +25,14 @@ export class MetronomeEngine {
     this.bpm = bpm;
   }
 
+  public setBeatsPerBar(beats: number) {
+    this.beatsPerBar = beats;
+    // Reset counter if it exceeds the new limit to prevent glitches
+    if (this.currentBeatIndex >= beats) {
+      this.currentBeatIndex = 0;
+    }
+  }
+
   // New method to explicitly resume context (called when app comes to foreground)
   public async resumeContext() {
     if (this.audioContext && (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted')) {
@@ -35,27 +44,47 @@ export class MetronomeEngine {
     }
   }
 
-  public start() {
-    if (this.isPlaying) return;
-
+  // iOS Fix: Call this on user interaction to unlock/reset AudioContext
+  public prepare() {
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
-      // Auto-resume on state change (iOS interruption handling)
+      // Re-attach state listener
       this.audioContext.onstatechange = () => {
         if ((this.audioContext?.state as string) === 'interrupted' && this.isPlaying) {
              this.audioContext.resume();
         }
       };
     }
+    
+    if (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted') {
+      this.audioContext.resume();
+    }
 
-    if (this.audioContext.state === 'suspended') {
+    // Play silent buffer to unlock
+    try {
+      const buffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start(0);
+    } catch (e) {
+      console.error("Failed to play silent buffer in metronome:", e);
+    }
+  }
+
+  public start() {
+    if (this.isPlaying) return;
+
+    if (!this.audioContext) {
+      this.prepare(); // Use prepare to init if not exists
+    } else if (this.audioContext.state === 'suspended') {
       this.audioContext.resume();
     }
 
     this.isPlaying = true;
-    this.current16thNote = 0;
-    this.nextNoteTime = this.audioContext.currentTime + 0.05;
+    this.currentBeatIndex = 0;
+    this.nextNoteTime = this.audioContext!.currentTime + 0.05;
     
     this.scheduler();
   }
@@ -73,9 +102,9 @@ export class MetronomeEngine {
     const secondsPerBeat = 60.0 / this.bpm;
     this.nextNoteTime += secondsPerBeat; 
 
-    this.current16thNote++;
-    if (this.current16thNote === 4) {
-      this.current16thNote = 0;
+    this.currentBeatIndex++;
+    if (this.currentBeatIndex >= this.beatsPerBar) {
+      this.currentBeatIndex = 0;
     }
   }
 
@@ -89,9 +118,9 @@ export class MetronomeEngine {
     gainNode.connect(this.audioContext.destination);
 
     if (beatNumber === 0) {
-      osc.frequency.value = 1200;
+      osc.frequency.value = 1200; // Downbeat
     } else {
-      osc.frequency.value = 800;
+      osc.frequency.value = 800; // Weak beat
     }
 
     osc.start(time);
@@ -120,11 +149,11 @@ export class MetronomeEngine {
     // If we are lagging more than 0.2s, reset the clock to avoid "machine gun" catch-up effect.
     if (this.nextNoteTime < this.audioContext.currentTime - 0.2) {
         this.nextNoteTime = this.audioContext.currentTime + 0.05;
-        this.current16thNote = 0; // Optional: Reset to downbeat on resume
+        this.currentBeatIndex = 0; // Optional: Reset to downbeat on resume
     }
 
     while (this.nextNoteTime < (this.audioContext.currentTime + this.scheduleAheadTime)) {
-        this.scheduleNote(this.current16thNote, this.nextNoteTime);
+        this.scheduleNote(this.currentBeatIndex, this.nextNoteTime);
         this.nextNote();
     }
 

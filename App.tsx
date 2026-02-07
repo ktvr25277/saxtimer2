@@ -7,7 +7,7 @@ import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
 import { TunerWidget } from './components/TunerWidget';
 import { AlarmEngine, MetronomeEngine } from './services/audioService';
-import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging, Clock } from 'lucide-react';
+import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging, Clock, RefreshCcw } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
 const SETTINGS_KEY = 'sax-pro-settings';
@@ -238,7 +238,7 @@ function App() {
     }
     // Also ensure metronome context is healthy
     if (metronomeEngine.current) {
-       metronomeEngine.current.resumeContext();
+       metronomeEngine.current.prepare();
     }
 
     if (isPaused) {
@@ -269,6 +269,16 @@ function App() {
         setTimeLeft(practiceDuration);
         setOvertimeSeconds(0);
         break;
+    }
+  };
+
+  const handleSoundReset = () => {
+    // Manually force re-initialization/resume of audio contexts
+    if (metronomeEngine.current) {
+        metronomeEngine.current.prepare();
+    }
+    if (alarmEngine.current) {
+        alarmEngine.current.prepare();
     }
   };
 
@@ -314,7 +324,7 @@ function App() {
     if (!metronomeEngine.current) return;
     
     // Ensure context is ready before toggling
-    metronomeEngine.current.resumeContext();
+    metronomeEngine.current.prepare();
 
     if (isMetronomePlaying) {
       metronomeEngine.current.stop();
@@ -385,6 +395,19 @@ function App() {
         
         {/* Timer Area with Tuner */}
         <div className="mt-2 relative w-full flex justify-center">
+          
+          {/* Sound Reset: Positioned to the left of the timer */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1">
+             <button
+               onClick={handleSoundReset}
+               className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-900/50 text-zinc-500 hover:text-brass-400 hover:bg-zinc-800 border border-zinc-800 transition-all active:scale-95 shadow-lg"
+               title="音が出ない場合はタップ"
+             >
+               <RefreshCcw size={16} />
+             </button>
+             <span className="text-[8px] text-zinc-600 whitespace-nowrap font-bold tracking-tighter">音リセット</span>
+          </div>
+
           <CircularTimer 
             progress={getProgress()} 
             timeLeft={timeLeft} 
