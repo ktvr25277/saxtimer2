@@ -73,6 +73,24 @@ export class MetronomeEngine {
     }
   }
 
+  // Force Re-creation of AudioContext
+  // This is crucial for iOS when the context gets stuck in 'interrupted' state
+  public hardReset() {
+    this.stop();
+    const oldContext = this.audioContext;
+    
+    // Nullify first so prepare() creates a NEW context synchronously
+    this.audioContext = null;
+    
+    // Immediately create new context (Must happen in the user click event stack)
+    this.prepare();
+    
+    // Clean up old context asynchronously
+    if (oldContext) {
+      oldContext.close().catch(e => console.error("Error closing old metronome context:", e));
+    }
+  }
+
   public start() {
     if (this.isPlaying) return;
 
@@ -190,6 +208,19 @@ export class AlarmEngine {
       source.buffer = buffer;
       source.connect(this.audioContext.destination);
       source.start(0);
+    }
+  }
+
+  // Force Re-creation for Alarm as well
+  public hardReset() {
+    this.stop();
+    const oldContext = this.audioContext;
+    
+    this.audioContext = null;
+    this.prepare(); // Synchronous creation of new context
+
+    if (oldContext) {
+      oldContext.close().catch(e => console.error("Error closing old alarm context:", e));
     }
   }
 

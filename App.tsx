@@ -273,13 +273,16 @@ function App() {
   };
 
   const handleSoundReset = () => {
-    // Manually force re-initialization/resume of audio contexts
+    // FORCE HARD RESET of Audio Contexts
+    // This destroys the old stuck context and creates a brand new one immediately
     if (metronomeEngine.current) {
-        metronomeEngine.current.prepare();
+        metronomeEngine.current.hardReset();
     }
     if (alarmEngine.current) {
-        alarmEngine.current.prepare();
+        alarmEngine.current.hardReset();
     }
+    // If metronome was playing, it will stop. User needs to restart it manually, which is safer.
+    setIsMetronomePlaying(false);
   };
 
   const handlePause = () => {
