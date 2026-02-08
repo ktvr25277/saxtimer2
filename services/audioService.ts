@@ -12,6 +12,7 @@ export class MetronomeEngine {
   private beatsPerBar: number = 4; // Default to 4/4
   private soundType: MetronomeSoundType = MetronomeSoundType.DIGITAL;
   
+  private noiseBuffer: AudioBuffer | null = null;
   private onBeatCallback: ((beat: number) => void) | null = null;
 
   constructor(onBeat?: (beat: number) => void) {
@@ -62,6 +63,22 @@ export class MetronomeEngine {
       };
     }
     
+    // Init Noise Buffer for Mechanical Click
+    if (!this.noiseBuffer && this.audioContext) {
+      try {
+        const bufferSize = this.audioContext.sampleRate * 0.1; // 100ms
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        // Create an impulse with exponential decay
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 4);
+        }
+        this.noiseBuffer = buffer;
+      } catch (e) {
+        console.error("Failed to create noise buffer:", e);
+      }
+    }
+    
     if (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted') {
       this.audioContext.resume();
     }
@@ -86,6 +103,7 @@ export class MetronomeEngine {
     
     // Nullify first so prepare() creates a NEW context synchronously
     this.audioContext = null;
+    this.noiseBuffer = null;
     
     // Immediately create new context (Must happen in the user click event stack)
     this.prepare();
@@ -137,7 +155,7 @@ export class MetronomeEngine {
     // Trigger sound based on selected type
     switch (this.soundType) {
       case MetronomeSoundType.CLICK:
-        this.playClick(beatNumber === 0, time);
+        this.playMechanical(beatNumber === 0, time);
         break;
       case MetronomeSoundType.WOOD:
         this.playWood(beatNumber === 0, time);
@@ -181,10 +199,57 @@ export class MetronomeEngine {
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
   }
 
-  private playClick(isStrong: boolean, time: number) {
+  // Realistic Mechanical Metronome (Click + Bell)
+  private playMechanical(isStrong: boolean, time: number) {
     if (!this.audioContext) return;
     
-    // Create oscillator for "mechanical" click (square wave)
+    // 1. The "Click" (Mechanism)
+    // Uses the noise buffer to create a sharp "snap"
+    if (this.noiseBuffer) {
+      const source = this.audioContext.createBufferSource();
+      source.buffer = this.noiseBuffer;
+      
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = 2.0;
+      // Slightly different resonance for strong/weak to simulate mechanism cycle
+      filter.frequency.value = isStrong ? 2000 : 1600; 
+
+      const gain = this.audioContext.createGain();
+      gain.gain.value = 0.5; // Base click volume
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.audioContext.destination);
+
+      source.start(time);
+    }
+
+    // 2. The "Bell" (Downbeat)
+    if (isStrong) {
+      const osc = this.audioContext.createOscillator();
+      const gain = this.audioContext.createGain();
+      
+      osc.connect(gain);
+      gain.connect(this.audioContext.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(2000, time); // High pitched bell
+      
+      // Instant attack, long decay
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.3, time + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+
+      osc.start(time);
+      osc.stop(time + 0.6);
+    }
+  }
+
+  private playWood(isStrong: boolean, time: number) {
+    if (!this.audioContext) return;
+    
+    // Use Triangle wave for hollower sound, filtered
     const osc = this.audioContext.createOscillator();
     const gainNode = this.audioContext.createGain();
     const filter = this.audioContext.createBiquadFilter();
@@ -193,49 +258,25 @@ export class MetronomeEngine {
     filter.connect(gainNode);
     gainNode.connect(this.audioContext.destination);
 
-    osc.type = 'square';
-    
-    // High-pass filter to make it "clicky" and remove low hum
-    filter.type = 'highpass';
-    filter.frequency.value = 1000; 
+    osc.type = 'triangle';
+    // Lowpass to remove harsh digital edge of triangle
+    filter.type = 'lowpass';
+    filter.frequency.value = 2000;
 
     if (isStrong) {
-      osc.frequency.value = 1500;
-      gainNode.gain.setValueAtTime(0.3, time);
+      osc.frequency.setValueAtTime(900, time);
+      gainNode.gain.setValueAtTime(0.7, time);
     } else {
-      osc.frequency.value = 1200;
-      gainNode.gain.setValueAtTime(0.2, time);
-    }
-
-    osc.start(time);
-    osc.stop(time + 0.03); // Very short
-
-    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.02);
-  }
-
-  private playWood(isStrong: boolean, time: number) {
-    if (!this.audioContext) return;
-    
-    const osc = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
-
-    osc.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
-
-    osc.type = 'sine';
-
-    if (isStrong) {
-      osc.frequency.setValueAtTime(1000, time);
-    } else {
-      osc.frequency.setValueAtTime(750, time);
+      osc.frequency.setValueAtTime(700, time);
+      gainNode.gain.setValueAtTime(0.5, time);
     }
 
     osc.start(time);
     osc.stop(time + 0.1);
     
     gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(0.7, time + 0.005);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+    gainNode.gain.linearRampToValueAtTime(isStrong ? 0.7 : 0.5, time + 0.005);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
   }
 
   private scheduler() {
