@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TimerStatus, PracticeStats, AlarmType, InstrumentKey } from './types';
+import { TimerStatus, PracticeStats, AlarmType, InstrumentKey, MetronomeSoundType } from './types';
 import { PRACTICE_DURATION, BREAK_DURATION, MIN_BPM, MAX_BPM } from './constants';
 import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
@@ -40,6 +40,7 @@ function App() {
   // Settings UI
   const [showSettings, setShowSettings] = useState(false);
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
+  const [metronomeSound, setMetronomeSound] = useState<MetronomeSoundType>(MetronomeSoundType.DIGITAL);
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
   const [instrumentKey, setInstrumentKey] = useState<InstrumentKey>(InstrumentKey.Bb);
 
@@ -93,12 +94,13 @@ function App() {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        const { alarm, wakeLock, practice, break: breakTime, bpm, key } = JSON.parse(savedSettings);
+        const { alarm, wakeLock, practice, break: breakTime, bpm, key, metronomeSound: savedMetaSound } = JSON.parse(savedSettings);
         if (alarm) setSelectedAlarm(alarm);
         if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
         if (typeof practice === 'number') setPracticeDuration(practice);
         if (typeof breakTime === 'number') setBreakDuration(breakTime);
         if (key) setInstrumentKey(key);
+        if (savedMetaSound) setMetronomeSound(savedMetaSound);
         
         if (bpm) {
           setBpmSettings(bpm);
@@ -121,9 +123,17 @@ function App() {
       practice: practiceDuration,
       break: breakDuration,
       bpm: bpmSettings,
-      key: instrumentKey
+      key: instrumentKey,
+      metronomeSound: metronomeSound
     }));
-  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey]);
+  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey, metronomeSound]);
+
+  // Sync Metronome Sound Settings
+  useEffect(() => {
+    if (metronomeEngine.current) {
+      metronomeEngine.current.setSoundType(metronomeSound);
+    }
+  }, [metronomeSound]);
 
   // If settings change while IDLE, update display immediately
   useEffect(() => {
@@ -599,7 +609,7 @@ function App() {
 
             {/* Metronome Settings */}
             <div>
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Metronome Defaults</label>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Metronome</label>
               <div className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 space-y-4">
                  {/* Default BPM */}
                  <div className="flex items-center justify-between">
@@ -630,15 +640,49 @@ function App() {
                               max={MAX_BPM}
                               value={preset}
                               onChange={(e) => {
-                                 const val = Math.max(MIN_BPM, Math.min(MAX_BPM, parseInt(e.target.value) || 60));
+                                 const val = parseInt(e.target.value);
+                                 // Allow partial typing, but if blur we'd clamp (needs complex handling for full robustness)
+                                 // For now, simple clamp on change if > max to prevent crazy values, 
+                                 // but allow < min to type "1" then "10"
+                                 if (!isNaN(val)) {
+                                    const newPresets = [...bpmSettings.presets] as [number, number, number];
+                                    if (val > MAX_BPM) newPresets[index] = MAX_BPM;
+                                    else newPresets[index] = val; // Allow numbers below MIN_BPM during typing
+                                    setBpmSettings(s => ({ ...s, presets: newPresets }));
+                                 }
+                              }}
+                              onBlur={(e) => {
+                                 const val = parseInt(e.target.value) || 60;
+                                 const clamped = Math.max(MIN_BPM, Math.min(MAX_BPM, val));
                                  const newPresets = [...bpmSettings.presets] as [number, number, number];
-                                 newPresets[index] = val;
+                                 newPresets[index] = clamped;
                                  setBpmSettings(s => ({ ...s, presets: newPresets }));
                               }}
                               className="w-full bg-zinc-900 border border-zinc-700 rounded-md text-center py-1 text-white font-mono text-sm focus:border-brass-500 outline-none"
                             />
                          </div>
                        ))}
+                    </div>
+                 </div>
+
+                 {/* Metronome Sound Type */}
+                 <div>
+                    <span className="text-zinc-500 text-xs uppercase tracking-wide block mb-2">Sound Type</span>
+                    <div className="flex gap-2">
+                      {[MetronomeSoundType.DIGITAL, MetronomeSoundType.CLICK, MetronomeSoundType.WOOD].map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setMetronomeSound(type)}
+                          className={`
+                            flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all
+                            ${metronomeSound === type 
+                               ? 'bg-zinc-700 text-brass-400 border border-zinc-600 shadow-sm' 
+                               : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300 border border-zinc-800'}
+                          `}
+                        >
+                          {type === MetronomeSoundType.DIGITAL ? 'Beep' : type === MetronomeSoundType.CLICK ? 'Click' : 'Wood'}
+                        </button>
+                      ))}
                     </div>
                  </div>
               </div>

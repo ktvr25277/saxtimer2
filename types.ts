@@ -18,6 +18,12 @@ export enum AlarmType {
   CHORD = 'CHORD'
 }
 
+export enum MetronomeSoundType {
+  DIGITAL = 'DIGITAL',
+  CLICK = 'CLICK',
+  WOOD = 'WOOD'
+}
+
 export enum InstrumentKey {
   C = 'C',
   Bb = 'Bb',

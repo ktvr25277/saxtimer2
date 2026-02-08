@@ -95,33 +95,34 @@ export const Metronome: React.FC<MetronomeProps> = ({
   return (
     <div className={`flex flex-col items-center w-full ${className}`}>
       
-      <div className="flex items-center justify-between w-full max-w-xs mb-2">
+      {/* Visual Beats & Time Sig - Centered above the main pod */}
+      <div className="flex items-center justify-between w-full max-w-[320px] mb-3 px-1">
         {/* Visual Beats */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           {Array.from({ length: beatsPerBar }).map((_, i) => (
             <div
               key={i}
               className={`
-                w-3 h-3 rounded-full transition-all duration-75 border border-zinc-700
+                w-2.5 h-2.5 rounded-full transition-all duration-75 border border-zinc-700/50
                 ${activeBeat === i 
-                  ? (i === 0 ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-brass-400 shadow-[0_0_8px_#facc15]') 
-                  : 'bg-zinc-900'}
+                  ? (i === 0 ? 'bg-red-500 shadow-[0_0_10px_#ef4444] scale-125' : 'bg-brass-400 shadow-[0_0_8px_#facc15] scale-110') 
+                  : 'bg-zinc-800'}
               `}
             />
           ))}
         </div>
 
         {/* Time Signature Selector */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
           {[2, 3, 4].map(b => (
             <button
               key={b}
               onClick={() => setBeatsPerBar(b)}
               className={`
-                w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all
+                w-6 h-5 rounded flex items-center justify-center text-[10px] font-bold transition-all
                 ${beatsPerBar === b 
-                  ? 'bg-brass-500 text-black shadow-[0_0_8px_rgba(234,179,8,0.4)]' 
-                  : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'}
+                  ? 'bg-brass-500 text-black shadow-sm' 
+                  : 'text-zinc-500 hover:text-zinc-300'}
               `}
             >
               {b}
@@ -130,7 +131,8 @@ export const Metronome: React.FC<MetronomeProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between w-full max-w-xs bg-zinc-900/50 rounded-2xl p-3 border border-zinc-800">
+      {/* Main Controls Pod */}
+      <div className="flex items-center justify-center gap-5 w-full max-w-[340px] bg-zinc-900/60 backdrop-blur-sm rounded-3xl py-3 px-5 border border-zinc-800/80 shadow-lg">
         
         {/* Play Button */}
         <button
@@ -139,43 +141,40 @@ export const Metronome: React.FC<MetronomeProps> = ({
             w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 shrink-0
             ${isPlaying 
               ? 'bg-zinc-800 text-brass-500 border border-brass-500/30' 
-              : 'bg-brass-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:bg-brass-400'}
+              : 'bg-brass-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:bg-brass-400 hover:scale-105'}
           `}
         >
           {isPlaying ? <Square size={20} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
         </button>
 
-        {/* Separator line */}
-        <div className="h-10 w-[1px] bg-zinc-800 shrink-0 mx-2" />
+        {/* Divider */}
+        <div className="h-10 w-[1px] bg-zinc-800 shrink-0" />
 
-        {/* Controls Group */}
-        <div className="flex items-center gap-3">
+        {/* BPM Controls Group */}
+        <div className="flex items-center gap-4">
           
           {/* BPM Display & Wheel */}
-          <div className="flex items-center gap-2">
-            <div className="text-right">
-              <span className="block text-[8px] text-zinc-500 font-serif tracking-widest uppercase">BPM</span>
-              <span className="block text-2xl font-mono text-white leading-none">{bpm}</span>
+          <div className="flex items-center gap-3">
+            <div className="text-right min-w-[3.5rem]">
+              <span className="block text-[8px] text-zinc-600 font-serif tracking-widest uppercase mb-0.5">BPM</span>
+              <span className="block text-3xl font-mono text-white leading-none font-medium tracking-tighter">{bpm}</span>
             </div>
 
             {/* Wheel Picker */}
-            <div className="relative h-16 w-12 overflow-hidden bg-black rounded-lg border border-zinc-800 shadow-inner">
-              {/* Gradient Overlays for depth effect */}
-              <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-black to-transparent pointer-events-none z-10" />
-              <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-black to-transparent pointer-events-none z-10" />
-              
-              {/* Center Indicator */}
-              <div className="absolute top-1/2 left-0 right-0 h-8 -mt-4 border-y border-brass-500/50 bg-brass-500/10 pointer-events-none z-0" />
+            <div className="relative h-14 w-10 overflow-hidden bg-black/40 rounded-lg border border-zinc-800/50 shadow-inner">
+              <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none z-10" />
+              <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
+              <div className="absolute top-1/2 left-0 right-0 h-7 -mt-3.5 border-y border-brass-500/30 bg-brass-500/5 pointer-events-none z-0" />
 
               <div 
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
-                className="h-full overflow-y-auto snap-y snap-mandatory no-scrollbar py-[16px]" // Padding to center first/last items
+                className="h-full overflow-y-auto snap-y snap-mandatory no-scrollbar py-[14px]"
               >
                 {bpmOptions.map((val) => (
                   <div 
                     key={val} 
-                    className={`h-[32px] flex items-center justify-center snap-center text-sm font-bold transition-colors ${val === bpm ? 'text-brass-400' : 'text-zinc-700'}`}
+                    className={`h-[32px] flex items-center justify-center snap-center text-xs font-bold transition-colors ${val === bpm ? 'text-brass-400 scale-110' : 'text-zinc-700'}`}
                   >
                     {val}
                   </div>
@@ -184,14 +183,14 @@ export const Metronome: React.FC<MetronomeProps> = ({
             </div>
           </div>
 
-          {/* Presets Column (Right Side) */}
+          {/* Presets Column */}
           <div className="flex flex-col gap-1.5 shrink-0">
              {presets.map((presetBpm, i) => (
                <button
                   key={i}
                   onClick={() => setBpm(presetBpm)}
                   className={`
-                    w-8 py-1 rounded text-[10px] font-mono font-medium transition-all text-center
+                    w-9 py-1 rounded-[4px] text-[9px] font-mono font-medium transition-all text-center
                     ${bpm === presetBpm 
                        ? 'bg-brass-500/20 text-brass-400 border border-brass-500/30' 
                        : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-transparent'}

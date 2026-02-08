@@ -1,4 +1,4 @@
-import { AlarmType } from "../types";
+import { AlarmType, MetronomeSoundType } from "../types";
 
 export class MetronomeEngine {
   private audioContext: AudioContext | null = null;
@@ -10,6 +10,7 @@ export class MetronomeEngine {
   private scheduleAheadTime: number = 0.1; 
   private bpm: number = 60;
   private beatsPerBar: number = 4; // Default to 4/4
+  private soundType: MetronomeSoundType = MetronomeSoundType.DIGITAL;
   
   private onBeatCallback: ((beat: number) => void) | null = null;
 
@@ -31,6 +32,10 @@ export class MetronomeEngine {
     if (this.currentBeatIndex >= beats) {
       this.currentBeatIndex = 0;
     }
+  }
+
+  public setSoundType(type: MetronomeSoundType) {
+    this.soundType = type;
   }
 
   // New method to explicitly resume context (called when app comes to foreground)
@@ -129,13 +134,40 @@ export class MetronomeEngine {
   private scheduleNote(beatNumber: number, time: number) {
     if (!this.audioContext) return;
 
+    // Trigger sound based on selected type
+    switch (this.soundType) {
+      case MetronomeSoundType.CLICK:
+        this.playClick(beatNumber === 0, time);
+        break;
+      case MetronomeSoundType.WOOD:
+        this.playWood(beatNumber === 0, time);
+        break;
+      case MetronomeSoundType.DIGITAL:
+      default:
+        this.playDigital(beatNumber === 0, time);
+        break;
+    }
+
+    const timeDiff = time - this.audioContext.currentTime;
+    // Only callback if reasonable timeDiff (prevent callbacks for very old events)
+    if (timeDiff >= -0.1) {
+        setTimeout(() => {
+            if (this.onBeatCallback && this.isPlaying) {
+                this.onBeatCallback(beatNumber);
+            }
+        }, timeDiff * 1000);
+    }
+  }
+
+  private playDigital(isStrong: boolean, time: number) {
+    if (!this.audioContext) return;
     const osc = this.audioContext.createOscillator();
     const gainNode = this.audioContext.createGain();
 
     osc.connect(gainNode);
     gainNode.connect(this.audioContext.destination);
 
-    if (beatNumber === 0) {
+    if (isStrong) {
       osc.frequency.value = 1200; // Downbeat
     } else {
       osc.frequency.value = 800; // Weak beat
@@ -147,16 +179,63 @@ export class MetronomeEngine {
     gainNode.gain.setValueAtTime(0, time);
     gainNode.gain.linearRampToValueAtTime(1, time + 0.001);
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+  }
 
-    const timeDiff = time - this.audioContext.currentTime;
-    // Only callback if reasonable timeDiff (prevent callbacks for very old events)
-    if (timeDiff >= -0.1) {
-        setTimeout(() => {
-            if (this.onBeatCallback && this.isPlaying) {
-                this.onBeatCallback(beatNumber);
-            }
-        }, timeDiff * 1000);
+  private playClick(isStrong: boolean, time: number) {
+    if (!this.audioContext) return;
+    
+    // Create oscillator for "mechanical" click (square wave)
+    const osc = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    const filter = this.audioContext.createBiquadFilter();
+
+    osc.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    osc.type = 'square';
+    
+    // High-pass filter to make it "clicky" and remove low hum
+    filter.type = 'highpass';
+    filter.frequency.value = 1000; 
+
+    if (isStrong) {
+      osc.frequency.value = 1500;
+      gainNode.gain.setValueAtTime(0.3, time);
+    } else {
+      osc.frequency.value = 1200;
+      gainNode.gain.setValueAtTime(0.2, time);
     }
+
+    osc.start(time);
+    osc.stop(time + 0.03); // Very short
+
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.02);
+  }
+
+  private playWood(isStrong: boolean, time: number) {
+    if (!this.audioContext) return;
+    
+    const osc = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    osc.type = 'sine';
+
+    if (isStrong) {
+      osc.frequency.setValueAtTime(1000, time);
+    } else {
+      osc.frequency.setValueAtTime(750, time);
+    }
+
+    osc.start(time);
+    osc.stop(time + 0.1);
+    
+    gainNode.gain.setValueAtTime(0, time);
+    gainNode.gain.linearRampToValueAtTime(0.7, time + 0.005);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
   }
 
   private scheduler() {
