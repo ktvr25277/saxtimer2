@@ -8,19 +8,25 @@ interface MetronomeProps {
   engine: MetronomeEngine | null;
   isPlaying: boolean;
   onToggle: () => void;
+  bpm: number;
+  setBpm: (bpm: number) => void;
+  presets: [number, number, number];
 }
 
 export const Metronome: React.FC<MetronomeProps> = ({ 
   className,
   engine,
   isPlaying,
-  onToggle
+  onToggle,
+  bpm,
+  setBpm,
+  presets
 }) => {
-  const [bpm, setBpm] = useState(60);
   const [beatsPerBar, setBeatsPerBar] = useState(4); // Default to 4 beats
   const [activeBeat, setActiveBeat] = useState<number>(-1); 
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isInternalScroll = useRef(false);
 
   // Connect UI beat visualizer to Engine
   useEffect(() => {
@@ -36,7 +42,7 @@ export const Metronome: React.FC<MetronomeProps> = ({
     }
   }, [engine]); 
 
-  // Update Engine BPM when local state changes
+  // Update Engine BPM when prop changes
   useEffect(() => {
     if (engine) {
       engine.setBpm(bpm);
@@ -56,8 +62,11 @@ export const Metronome: React.FC<MetronomeProps> = ({
   // Handle Wheel Scroll
   const handleScroll = () => {
     if (scrollContainerRef.current) {
-      const { scrollTop, clientHeight } = scrollContainerRef.current;
-      const itemHeight = 32; // Reduced height of each BPM item
+      // If we are scrolling programmatically, ignore this event
+      if (isInternalScroll.current) return;
+
+      const { scrollTop } = scrollContainerRef.current;
+      const itemHeight = 32; 
       const centerIndex = Math.round(scrollTop / itemHeight);
       const newBpm = MIN_BPM + centerIndex;
       
@@ -67,15 +76,21 @@ export const Metronome: React.FC<MetronomeProps> = ({
     }
   };
 
-  // Center the initial BPM on mount
+  // Sync Scroll Wheel Position when BPM prop changes (e.g. via preset or initial load)
   useEffect(() => {
     if (scrollContainerRef.current) {
       const itemHeight = 32;
       const targetScroll = (bpm - MIN_BPM) * itemHeight;
-      scrollContainerRef.current.scrollTop = targetScroll;
+      
+      // Check if we need to scroll (avoid loops)
+      if (Math.abs(scrollContainerRef.current.scrollTop - targetScroll) > 10) {
+        isInternalScroll.current = true;
+        scrollContainerRef.current.scrollTop = targetScroll;
+        // Release lock after a short delay
+        setTimeout(() => { isInternalScroll.current = false; }, 100);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, [bpm]);
 
   return (
     <div className={`flex flex-col items-center w-full ${className}`}>
@@ -115,13 +130,13 @@ export const Metronome: React.FC<MetronomeProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-8 w-full max-w-xs bg-zinc-900/50 rounded-2xl py-3 border border-zinc-800">
+      <div className="flex items-center justify-between w-full max-w-xs bg-zinc-900/50 rounded-2xl p-3 border border-zinc-800">
         
         {/* Play Button */}
         <button
           onClick={onToggle}
           className={`
-            w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200
+            w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 shrink-0
             ${isPlaying 
               ? 'bg-zinc-800 text-brass-500 border border-brass-500/30' 
               : 'bg-brass-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:bg-brass-400'}
@@ -130,40 +145,63 @@ export const Metronome: React.FC<MetronomeProps> = ({
           {isPlaying ? <Square size={20} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
         </button>
 
-        {/* Separator line for style */}
-        <div className="h-10 w-[1px] bg-zinc-800" />
+        {/* Separator line */}
+        <div className="h-10 w-[1px] bg-zinc-800 shrink-0 mx-2" />
 
-        {/* BPM Display & Wheel */}
-        <div className="flex items-center gap-4">
-           <div className="text-right">
-             <span className="block text-[10px] text-zinc-500 font-serif tracking-widest">BPM</span>
-             <span className="block text-2xl font-mono text-white leading-none">{bpm}</span>
-           </div>
+        {/* Controls Group */}
+        <div className="flex items-center gap-3">
+          
+          {/* BPM Display & Wheel */}
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <span className="block text-[8px] text-zinc-500 font-serif tracking-widest uppercase">BPM</span>
+              <span className="block text-2xl font-mono text-white leading-none">{bpm}</span>
+            </div>
 
-           {/* Wheel Picker */}
-           <div className="relative h-16 w-14 overflow-hidden bg-black rounded-lg border border-zinc-800 shadow-inner">
-             {/* Gradient Overlays for depth effect */}
-             <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-black to-transparent pointer-events-none z-10" />
-             <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-black to-transparent pointer-events-none z-10" />
-             
-             {/* Center Indicator */}
-             <div className="absolute top-1/2 left-0 right-0 h-8 -mt-4 border-y border-brass-500/50 bg-brass-500/10 pointer-events-none z-0" />
+            {/* Wheel Picker */}
+            <div className="relative h-16 w-12 overflow-hidden bg-black rounded-lg border border-zinc-800 shadow-inner">
+              {/* Gradient Overlays for depth effect */}
+              <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-black to-transparent pointer-events-none z-10" />
+              <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-black to-transparent pointer-events-none z-10" />
+              
+              {/* Center Indicator */}
+              <div className="absolute top-1/2 left-0 right-0 h-8 -mt-4 border-y border-brass-500/50 bg-brass-500/10 pointer-events-none z-0" />
 
-             <div 
-               ref={scrollContainerRef}
-               onScroll={handleScroll}
-               className="h-full overflow-y-auto snap-y snap-mandatory no-scrollbar py-[16px]" // Padding to center first/last items
-             >
-               {bpmOptions.map((val) => (
-                 <div 
-                   key={val} 
-                   className={`h-[32px] flex items-center justify-center snap-center text-sm font-bold transition-colors ${val === bpm ? 'text-brass-400' : 'text-zinc-700'}`}
-                 >
-                   {val}
-                 </div>
-               ))}
-             </div>
-           </div>
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="h-full overflow-y-auto snap-y snap-mandatory no-scrollbar py-[16px]" // Padding to center first/last items
+              >
+                {bpmOptions.map((val) => (
+                  <div 
+                    key={val} 
+                    className={`h-[32px] flex items-center justify-center snap-center text-sm font-bold transition-colors ${val === bpm ? 'text-brass-400' : 'text-zinc-700'}`}
+                  >
+                    {val}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Presets Column (Right Side) */}
+          <div className="flex flex-col gap-1.5 shrink-0">
+             {presets.map((presetBpm, i) => (
+               <button
+                  key={i}
+                  onClick={() => setBpm(presetBpm)}
+                  className={`
+                    w-8 py-1 rounded text-[10px] font-mono font-medium transition-all text-center
+                    ${bpm === presetBpm 
+                       ? 'bg-brass-500/20 text-brass-400 border border-brass-500/30' 
+                       : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-transparent'}
+                  `}
+               >
+                  {presetBpm}
+               </button>
+             ))}
+          </div>
+
         </div>
 
       </div>

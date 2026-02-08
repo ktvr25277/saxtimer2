@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TunerEngine, TunerResult } from '../services/tunerService';
+import { InstrumentKey } from '../types';
 import { Mic, Activity } from 'lucide-react';
 
 const KATAKANA_NOTES = ["ド", "ド♯", "レ", "レ♯", "ミ", "ファ", "ファ♯", "ソ", "ソ♯", "ラ", "ラ♯", "シ"];
 
-export const TunerWidget: React.FC = () => {
+interface TunerWidgetProps {
+  instrumentKey: InstrumentKey;
+}
+
+export const TunerWidget: React.FC<TunerWidgetProps> = ({ instrumentKey }) => {
   const [isOn, setIsOn] = useState(false);
   const [result, setResult] = useState<TunerResult>({ noteIndex: -1, cents: 0, frequency: 0, isActive: false });
   const engineRef = useRef<TunerEngine | null>(null);
@@ -50,11 +55,29 @@ export const TunerWidget: React.FC = () => {
 
   const getNoteLabel = (index: number) => {
     if (index === -1) return '-';
-    // Transpose for Bb Instrument (Soprano Sax)
-    // Concert C (Index 0) -> Sax D (Index 2)
-    // Concert Bb (Index 10) -> Sax C (Index 0)
-    // Formula: (ConcertIndex + 2) % 12
-    const transposedIndex = (index + 2) % 12;
+    
+    let offset = 0;
+    
+    // Transposition Logic
+    // Index 0 = Concert C
+    switch (instrumentKey) {
+      case InstrumentKey.Bb:
+        // Soprano/Tenor Sax (Bb): Written C sounds Bb (-2 semitones). 
+        // Heard Concert C (0) -> Show D (2). Offset +2.
+        offset = 2;
+        break;
+      case InstrumentKey.Eb:
+        // Alto/Baritone Sax (Eb): Written C sounds Eb (-9 semitones / +3 semitones).
+        // Heard Concert C (0) -> Show A (9). Offset +9.
+        offset = 9;
+        break;
+      case InstrumentKey.C:
+      default:
+        offset = 0;
+        break;
+    }
+
+    const transposedIndex = (index + offset) % 12;
     return KATAKANA_NOTES[transposedIndex];
   };
 
@@ -83,8 +106,13 @@ export const TunerWidget: React.FC = () => {
         ${isOn ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 -translate-y-2 pointer-events-none'}
         min-w-[80px]
       `}>
+         {/* Key Indicator */}
+         <div className="absolute top-1 right-2 text-[8px] font-bold text-zinc-600 border border-zinc-700 rounded px-1">
+            {instrumentKey}
+         </div>
+
          {/* Note Name */}
-         <div className={`text-3xl font-bold font-sans whitespace-nowrap ${getCentsColor(result.cents)}`}>
+         <div className={`text-3xl font-bold font-sans whitespace-nowrap mt-1 ${getCentsColor(result.cents)}`}>
             {getNoteLabel(result.noteIndex)}
          </div>
          

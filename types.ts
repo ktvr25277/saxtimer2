@@ -18,6 +18,12 @@ export enum AlarmType {
   CHORD = 'CHORD'
 }
 
+export enum InstrumentKey {
+  C = 'C',
+  Bb = 'Bb',
+  Eb = 'Eb'
+}
+
 export interface PracticeStats {
   todaySeconds: number;
   totalSeconds: number;

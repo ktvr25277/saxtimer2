@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TimerStatus, PracticeStats, AlarmType } from './types';
-import { PRACTICE_DURATION, BREAK_DURATION } from './constants';
+import { TimerStatus, PracticeStats, AlarmType, InstrumentKey } from './types';
+import { PRACTICE_DURATION, BREAK_DURATION, MIN_BPM, MAX_BPM } from './constants';
 import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
 import { TunerWidget } from './components/TunerWidget';
 import { AlarmEngine, MetronomeEngine } from './services/audioService';
-import { Music, Settings, Volume2, Pause, Play, StopCircle, Power, BatteryCharging, Clock, RefreshCcw } from 'lucide-react';
+import { Music, Settings, Volume2, Pause, Play, StopCircle, BatteryCharging, Clock, RefreshCcw, Save } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
 const SETTINGS_KEY = 'sax-pro-settings';
+
+interface BPMSettings {
+  default: number;
+  presets: [number, number, number];
+}
 
 function App() {
   // --- STATE ---
@@ -25,10 +30,18 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [isMetronomePlaying, setIsMetronomePlaying] = useState(false);
   
+  // BPM State
+  const [currentBpm, setCurrentBpm] = useState(60);
+  const [bpmSettings, setBpmSettings] = useState<BPMSettings>({
+    default: 60,
+    presets: [60, 90, 120]
+  });
+  
   // Settings UI
   const [showSettings, setShowSettings] = useState(false);
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
+  const [instrumentKey, setInstrumentKey] = useState<InstrumentKey>(InstrumentKey.Bb);
 
   // Stats
   const [stats, setStats] = useState<PracticeStats>({
@@ -80,11 +93,17 @@ function App() {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        const { alarm, wakeLock, practice, break: breakTime } = JSON.parse(savedSettings);
+        const { alarm, wakeLock, practice, break: breakTime, bpm, key } = JSON.parse(savedSettings);
         if (alarm) setSelectedAlarm(alarm);
         if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
         if (typeof practice === 'number') setPracticeDuration(practice);
         if (typeof breakTime === 'number') setBreakDuration(breakTime);
+        if (key) setInstrumentKey(key);
+        
+        if (bpm) {
+          setBpmSettings(bpm);
+          setCurrentBpm(bpm.default); // Apply default on load
+        }
       } catch (e) {
         console.error("Failed to parse settings:", e);
       }
@@ -100,9 +119,11 @@ function App() {
       alarm: selectedAlarm, 
       wakeLock: wakeLockEnabled,
       practice: practiceDuration,
-      break: breakDuration
+      break: breakDuration,
+      bpm: bpmSettings,
+      key: instrumentKey
     }));
-  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration]);
+  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey]);
 
   // If settings change while IDLE, update display immediately
   useEffect(() => {
@@ -421,7 +442,7 @@ function App() {
           />
           {/* Tuner Widget: Positioned to the right of the timer, vertically centered */}
           <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20">
-             <TunerWidget />
+             <TunerWidget instrumentKey={instrumentKey} />
           </div>
         </div>
 
@@ -439,6 +460,9 @@ function App() {
              engine={metronomeEngine.current}
              isPlaying={isMetronomePlaying}
              onToggle={handleMetronomeToggle}
+             bpm={currentBpm}
+             setBpm={setCurrentBpm}
+             presets={bpmSettings.presets}
            />
         </div>
 
@@ -496,6 +520,30 @@ function App() {
               <button onClick={toggleSettings} className="text-zinc-500">Close</button>
             </div>
 
+            {/* Instrument Key Settings */}
+            <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Instrument Key</label>
+              <div className="flex gap-2 bg-zinc-800/50 p-1.5 rounded-lg border border-zinc-700/50">
+                 {[InstrumentKey.Eb, InstrumentKey.Bb, InstrumentKey.C].map((key) => (
+                    <button
+                       key={key}
+                       onClick={() => setInstrumentKey(key)}
+                       className={`
+                         flex-1 py-2 rounded-md text-sm font-bold transition-all
+                         ${instrumentKey === key 
+                            ? 'bg-zinc-700 text-brass-400 shadow-sm border border-zinc-600' 
+                            : 'text-zinc-500 hover:text-zinc-300'}
+                       `}
+                    >
+                       {key}
+                       <span className="block text-[8px] font-normal opacity-70">
+                         {key === InstrumentKey.Eb ? 'Alto/Bari' : key === InstrumentKey.Bb ? 'Sop/Ten' : 'Concert'}
+                       </span>
+                    </button>
+                 ))}
+              </div>
+            </div>
+
             {/* Timer Settings */}
             <div>
               <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Durations (Minutes)</label>
@@ -546,7 +594,53 @@ function App() {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
 
+            {/* Metronome Settings */}
+            <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Metronome Defaults</label>
+              <div className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 space-y-4">
+                 {/* Default BPM */}
+                 <div className="flex items-center justify-between">
+                    <span className="text-zinc-300 text-sm">Startup BPM</span>
+                    <input 
+                      type="number" 
+                      min={MIN_BPM}
+                      max={MAX_BPM}
+                      value={bpmSettings.default}
+                      onChange={(e) => {
+                         const val = Math.max(MIN_BPM, Math.min(MAX_BPM, parseInt(e.target.value) || 60));
+                         setBpmSettings(s => ({ ...s, default: val }));
+                      }}
+                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-md text-center py-1 text-white font-mono focus:border-brass-500 outline-none"
+                    />
+                 </div>
+                 
+                 {/* Presets */}
+                 <div>
+                    <span className="text-zinc-500 text-xs uppercase tracking-wide block mb-2">Presets</span>
+                    <div className="flex gap-2">
+                       {bpmSettings.presets.map((preset, index) => (
+                         <div key={index} className="flex-1 flex flex-col gap-1">
+                            <span className="text-[10px] text-zinc-600 text-center">#{index + 1}</span>
+                            <input 
+                              type="number" 
+                              min={MIN_BPM}
+                              max={MAX_BPM}
+                              value={preset}
+                              onChange={(e) => {
+                                 const val = Math.max(MIN_BPM, Math.min(MAX_BPM, parseInt(e.target.value) || 60));
+                                 const newPresets = [...bpmSettings.presets] as [number, number, number];
+                                 newPresets[index] = val;
+                                 setBpmSettings(s => ({ ...s, presets: newPresets }));
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-md text-center py-1 text-white font-mono text-sm focus:border-brass-500 outline-none"
+                            />
+                         </div>
+                       ))}
+                    </div>
+                 </div>
               </div>
             </div>
 
@@ -597,7 +691,7 @@ function App() {
             </div>
 
             <div className="pt-2 text-center text-xs text-zinc-600">
-               SAX PRO v1.4
+               SAX PRO v1.5
             </div>
           </div>
         </div>
