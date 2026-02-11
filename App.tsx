@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TimerStatus, PracticeStats, AlarmType, InstrumentKey, MetronomeSoundType } from './types';
+import { TimerStatus, PracticeStats, AlarmType, InstrumentKey, MetronomeSoundType, MetronomeVisualMode } from './types';
 import { PRACTICE_DURATION, BREAK_DURATION, MIN_BPM, MAX_BPM } from './constants';
 import { CircularTimer } from './components/CircularTimer';
 import { Metronome } from './components/Metronome';
 import { PracticeLog } from './components/PracticeLog';
 import { AdviceWidget } from './components/AdviceWidget';
 import { TunerWidget } from './components/TunerWidget';
+import { Recorder } from './components/Recorder';
 import { AlarmEngine, MetronomeEngine } from './services/audioService';
-import { Music, Settings, Volume2, Pause, Play, StopCircle, BatteryCharging, Clock, RefreshCcw, Save } from 'lucide-react';
+import { Music, Settings, Volume2, Pause, Play, StopCircle, BatteryCharging, Clock, RefreshCcw, Save, Zap, Circle, Sparkles } from 'lucide-react';
 
 const STORAGE_KEY = 'sax-pro-stats';
 const SETTINGS_KEY = 'sax-pro-settings';
@@ -41,6 +42,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
   const [metronomeSound, setMetronomeSound] = useState<MetronomeSoundType>(MetronomeSoundType.DIGITAL);
+  const [metronomeVisualMode, setMetronomeVisualMode] = useState<MetronomeVisualMode>(MetronomeVisualMode.DOTS);
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
   const [instrumentKey, setInstrumentKey] = useState<InstrumentKey>(InstrumentKey.Bb);
 
@@ -94,13 +96,14 @@ function App() {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        const { alarm, wakeLock, practice, break: breakTime, bpm, key, metronomeSound: savedMetaSound } = JSON.parse(savedSettings);
+        const { alarm, wakeLock, practice, break: breakTime, bpm, key, metronomeSound: savedMetaSound, metronomeVisual: savedVisual } = JSON.parse(savedSettings);
         if (alarm) setSelectedAlarm(alarm);
         if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
         if (typeof practice === 'number') setPracticeDuration(practice);
         if (typeof breakTime === 'number') setBreakDuration(breakTime);
         if (key) setInstrumentKey(key);
         if (savedMetaSound) setMetronomeSound(savedMetaSound);
+        if (savedVisual) setMetronomeVisualMode(savedVisual);
         
         if (bpm) {
           setBpmSettings(bpm);
@@ -124,9 +127,10 @@ function App() {
       break: breakDuration,
       bpm: bpmSettings,
       key: instrumentKey,
-      metronomeSound: metronomeSound
+      metronomeSound: metronomeSound,
+      metronomeVisual: metronomeVisualMode
     }));
-  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey, metronomeSound]);
+  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey, metronomeSound, metronomeVisualMode]);
 
   // Sync Metronome Sound Settings
   useEffect(() => {
@@ -430,16 +434,9 @@ function App() {
         {/* Timer Area with Tuner */}
         <div className="mt-2 relative w-full flex justify-center">
           
-          {/* Sound Reset: Positioned to the left of the timer */}
+          {/* Left Side: Recorder */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1">
-             <button
-               onClick={handleSoundReset}
-               className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-900/50 text-zinc-500 hover:text-brass-400 hover:bg-zinc-800 border border-zinc-800 transition-all active:scale-95 shadow-lg"
-               title="音が出ない場合はタップ"
-             >
-               <RefreshCcw size={16} />
-             </button>
-             <span className="text-[8px] text-zinc-600 whitespace-nowrap font-bold tracking-tighter">音リセット</span>
+             <Recorder />
           </div>
 
           <CircularTimer 
@@ -450,10 +447,24 @@ function App() {
             mainAction={handleMainAction}
             isPaused={isPaused}
           />
-          {/* Tuner Widget: Positioned to the right of the timer, vertically centered */}
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20">
+
+          {/* Right Side: Sound Reset & Tuner */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-6">
+             {/* Sound Reset moved here */}
+             <div className="flex flex-col items-center gap-1">
+               <button
+                 onClick={handleSoundReset}
+                 className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-900/50 text-zinc-500 hover:text-brass-400 hover:bg-zinc-800 border border-zinc-800 transition-all active:scale-95 shadow-lg"
+                 title="音が出ない場合はタップ"
+               >
+                 <RefreshCcw size={16} />
+               </button>
+               <span className="text-[8px] text-zinc-600 whitespace-nowrap font-bold tracking-tighter">音リセット</span>
+             </div>
+
              <TunerWidget instrumentKey={instrumentKey} />
           </div>
+
         </div>
 
         {/* Stats */}
@@ -473,6 +484,7 @@ function App() {
              bpm={currentBpm}
              setBpm={setCurrentBpm}
              presets={bpmSettings.presets}
+             visualMode={metronomeVisualMode}
            />
         </div>
 
@@ -611,6 +623,32 @@ function App() {
             <div>
               <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 block">Metronome</label>
               <div className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 space-y-4">
+                 
+                 {/* Visual Mode Selector */}
+                 <div className="flex items-center justify-between border-b border-zinc-700/50 pb-4">
+                    <span className="text-zinc-300 text-sm">Visual Mode</span>
+                    <div className="flex bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                       <button
+                         onClick={() => setMetronomeVisualMode(MetronomeVisualMode.DOTS)}
+                         className={`p-1.5 px-3 rounded-md flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${metronomeVisualMode === MetronomeVisualMode.DOTS ? 'bg-zinc-700 text-brass-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                       >
+                          <Circle size={10} fill="currentColor" /> Dots
+                       </button>
+                       <button
+                         onClick={() => setMetronomeVisualMode(MetronomeVisualMode.FLASH)}
+                         className={`p-1.5 px-3 rounded-md flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${metronomeVisualMode === MetronomeVisualMode.FLASH ? 'bg-zinc-700 text-brass-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                       >
+                          <Zap size={10} fill="currentColor" /> Flash
+                       </button>
+                       <button
+                         onClick={() => setMetronomeVisualMode(MetronomeVisualMode.BOTH)}
+                         className={`p-1.5 px-3 rounded-md flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${metronomeVisualMode === MetronomeVisualMode.BOTH ? 'bg-zinc-700 text-brass-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                       >
+                          <Sparkles size={10} fill="currentColor" /> Both
+                       </button>
+                    </div>
+                 </div>
+
                  {/* Default BPM */}
                  <div className="flex items-center justify-between">
                     <span className="text-zinc-300 text-sm">Startup BPM</span>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TunerEngine, TunerResult } from '../services/tunerService';
 import { InstrumentKey } from '../types';
-import { Mic, Activity } from 'lucide-react';
+import { AudioWaveform, Activity } from 'lucide-react';
 
 const KATAKANA_NOTES = ["ド", "ド♯", "レ", "レ♯", "ミ", "ファ", "ファ♯", "ソ", "ソ♯", "ラ", "ラ♯", "シ"];
 
@@ -94,7 +94,7 @@ export const TunerWidget: React.FC<TunerWidgetProps> = ({ instrumentKey }) => {
         `}
         aria-label="Toggle Tuner"
       >
-        {isOn ? <Activity size={18} className="animate-pulse" /> : <Mic size={18} />}
+        {isOn ? <Activity size={18} className="animate-pulse" /> : <AudioWaveform size={18} />}
       </button>
 
       {/* Pop-out Display */}

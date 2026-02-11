@@ -1,3 +1,4 @@
+
 export enum TimerStatus {
   IDLE = 'IDLE',
   PRACTICE = 'PRACTICE',
@@ -22,6 +23,12 @@ export enum MetronomeSoundType {
   DIGITAL = 'DIGITAL',
   CLICK = 'CLICK',
   WOOD = 'WOOD'
+}
+
+export enum MetronomeVisualMode {
+  DOTS = 'DOTS',
+  FLASH = 'FLASH',
+  BOTH = 'BOTH'
 }
 
 export enum InstrumentKey {
