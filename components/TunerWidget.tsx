@@ -82,13 +82,13 @@ export const TunerWidget: React.FC<TunerWidgetProps> = ({ instrumentKey }) => {
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1 relative">
       <button 
         onClick={toggleTuner}
         className={`
-          flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300
+          flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 shadow-lg
           ${isOn 
-            ? 'bg-zinc-800 text-brass-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]' 
+            ? 'bg-zinc-800 text-brass-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-brass-500/20' 
             : 'bg-zinc-900/50 text-zinc-500 hover:text-brass-400 hover:bg-zinc-800 border border-zinc-800'
           }
         `}
@@ -96,12 +96,13 @@ export const TunerWidget: React.FC<TunerWidgetProps> = ({ instrumentKey }) => {
       >
         {isOn ? <Activity size={18} className="animate-pulse" /> : <AudioWaveform size={18} />}
       </button>
+      <span className="text-[8px] text-zinc-600 whitespace-nowrap font-bold tracking-tighter">チューナー</span>
 
       {/* Pop-out Display */}
       <div className={`
-        absolute top-full mt-2 right-0 
+        absolute top-full mt-3 right-0 
         flex flex-col items-center justify-center
-        bg-zinc-900/90 backdrop-blur-md border border-zinc-700/50 rounded-xl p-3 shadow-2xl
+        bg-zinc-900/95 backdrop-blur-md border border-zinc-700/50 rounded-xl p-3 shadow-2xl z-50
         transition-all duration-300 origin-top-right
         ${isOn ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 -translate-y-2 pointer-events-none'}
         min-w-[80px]

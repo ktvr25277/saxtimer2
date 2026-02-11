@@ -513,8 +513,9 @@ export class ReverbEngine {
     if (!this.convolverNode) this.convolverNode = this.audioContext.createConvolver();
 
     // Generate IRs if needed
-    if (!this.roomBuffer) this.roomBuffer = this.generateImpulse(0.8, 4.0);
-    if (!this.hallBuffer) this.hallBuffer = this.generateImpulse(2.5, 2.0);
+    // INCREASED INTENSITY: Longer duration and slower decay for more effect
+    if (!this.roomBuffer) this.roomBuffer = this.generateImpulse(1.5, 3.0); // was 0.8, 4.0
+    if (!this.hallBuffer) this.hallBuffer = this.generateImpulse(3.0, 1.0); // was 2.5, 2.0
 
     // Default wiring (None)
     this.sourceNode?.disconnect();
@@ -546,14 +547,16 @@ export class ReverbEngine {
       // 1. Dry
       this.sourceNode.connect(this.dryGainNode);
       this.dryGainNode.connect(this.audioContext.destination);
-      this.dryGainNode.gain.value = 0.8; // Reduce dry slightly
+      this.dryGainNode.gain.value = 0.7; // Reduce dry slightly to let reverb shine
 
       // 2. Wet
       this.sourceNode.connect(this.convolverNode);
       this.convolverNode.buffer = mode === 'room' ? this.roomBuffer : this.hallBuffer;
       this.convolverNode.connect(this.wetGainNode);
       this.wetGainNode.connect(this.audioContext.destination);
-      this.wetGainNode.gain.value = mode === 'room' ? 0.4 : 0.6; // Reverb level
+      
+      // Increased wet gain
+      this.wetGainNode.gain.value = mode === 'room' ? 0.5 : 0.8; 
     }
   }
 
