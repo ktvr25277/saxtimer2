@@ -11,6 +11,7 @@ export class MetronomeEngine {
   private bpm: number = 60;
   private beatsPerBar: number = 4; // Default to 4/4
   private soundType: MetronomeSoundType = MetronomeSoundType.DIGITAL;
+  private volume: number = 1.0; // Master volume for metronome
   
   private noiseBuffer: AudioBuffer | null = null;
   private onBeatCallback: ((beat: number) => void) | null = null;
@@ -37,6 +38,10 @@ export class MetronomeEngine {
 
   public setSoundType(type: MetronomeSoundType) {
     this.soundType = type;
+  }
+
+  public setVolume(vol: number) {
+    this.volume = vol;
   }
 
   // New method to explicitly resume context (called when app comes to foreground)
@@ -194,8 +199,10 @@ export class MetronomeEngine {
     osc.start(time);
     osc.stop(time + 0.05);
     
+    const peak = 1.0 * this.volume;
+    
     gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(1, time + 0.001);
+    gainNode.gain.linearRampToValueAtTime(peak, time + 0.001);
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
   }
 
@@ -216,7 +223,7 @@ export class MetronomeEngine {
       filter.frequency.value = isStrong ? 2000 : 1600; 
 
       const gain = this.audioContext.createGain();
-      gain.gain.value = 0.5; // Base click volume
+      gain.gain.value = 0.5 * this.volume; // Base click volume adjusted
 
       source.connect(filter);
       filter.connect(gain);
@@ -237,8 +244,9 @@ export class MetronomeEngine {
       osc.frequency.setValueAtTime(2000, time); // High pitched bell
       
       // Instant attack, long decay
+      const peak = 0.3 * this.volume;
       gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(0.3, time + 0.002);
+      gain.gain.linearRampToValueAtTime(peak, time + 0.002);
       gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
 
       osc.start(time);
@@ -263,19 +271,22 @@ export class MetronomeEngine {
     filter.type = 'lowpass';
     filter.frequency.value = 2000;
 
+    const strongGain = 0.7 * this.volume;
+    const weakGain = 0.5 * this.volume;
+
     if (isStrong) {
       osc.frequency.setValueAtTime(900, time);
-      gainNode.gain.setValueAtTime(0.7, time);
+      gainNode.gain.setValueAtTime(strongGain, time);
     } else {
       osc.frequency.setValueAtTime(700, time);
-      gainNode.gain.setValueAtTime(0.5, time);
+      gainNode.gain.setValueAtTime(weakGain, time);
     }
 
     osc.start(time);
     osc.stop(time + 0.1);
     
     gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(isStrong ? 0.7 : 0.5, time + 0.005);
+    gainNode.gain.linearRampToValueAtTime(isStrong ? strongGain : weakGain, time + 0.005);
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
   }
 
@@ -459,5 +470,110 @@ export class AlarmEngine {
       osc.start(startTime);
       osc.stop(startTime + 1.5);
     });
+  }
+}
+
+// --- Reverb Engine ---
+
+export type ReverbMode = 'none' | 'room' | 'hall';
+
+export class ReverbEngine {
+  private audioContext: AudioContext | null = null;
+  private sourceNode: MediaElementAudioSourceNode | null = null;
+  private convolverNode: ConvolverNode | null = null;
+  private dryGainNode: GainNode | null = null;
+  private wetGainNode: GainNode | null = null;
+  
+  private roomBuffer: AudioBuffer | null = null;
+  private hallBuffer: AudioBuffer | null = null;
+
+  constructor() {}
+
+  public connect(audioElement: HTMLMediaElement) {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    // Only create source node once per element to avoid error
+    // Note: This relies on the audio element being fresh or this engine being persistent for the element
+    try {
+      if (!this.sourceNode) {
+        this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
+      }
+    } catch (e) {
+      // Source might already be connected if we are re-using engine with same element
+      console.warn("MediaElementSource already attached", e);
+    }
+
+    if (!this.dryGainNode) this.dryGainNode = this.audioContext.createGain();
+    if (!this.wetGainNode) this.wetGainNode = this.audioContext.createGain();
+    if (!this.convolverNode) this.convolverNode = this.audioContext.createConvolver();
+
+    // Generate IRs if needed
+    if (!this.roomBuffer) this.roomBuffer = this.generateImpulse(0.8, 4.0);
+    if (!this.hallBuffer) this.hallBuffer = this.generateImpulse(2.5, 2.0);
+
+    // Default wiring (None)
+    this.sourceNode?.disconnect();
+    this.sourceNode?.connect(this.dryGainNode);
+    
+    this.dryGainNode?.disconnect();
+    this.dryGainNode?.connect(this.audioContext.destination);
+
+    this.convolverNode?.disconnect();
+    this.wetGainNode?.disconnect();
+  }
+
+  public setMode(mode: ReverbMode) {
+    if (!this.audioContext || !this.sourceNode || !this.dryGainNode || !this.wetGainNode || !this.convolverNode) return;
+
+    // Reset Connections
+    this.sourceNode.disconnect();
+    this.dryGainNode.disconnect();
+    this.convolverNode.disconnect();
+    this.wetGainNode.disconnect();
+
+    if (mode === 'none') {
+      // Direct Path Only
+      this.sourceNode.connect(this.dryGainNode);
+      this.dryGainNode.connect(this.audioContext.destination);
+      this.dryGainNode.gain.value = 1.0;
+    } else {
+      // Split Path
+      // 1. Dry
+      this.sourceNode.connect(this.dryGainNode);
+      this.dryGainNode.connect(this.audioContext.destination);
+      this.dryGainNode.gain.value = 0.8; // Reduce dry slightly
+
+      // 2. Wet
+      this.sourceNode.connect(this.convolverNode);
+      this.convolverNode.buffer = mode === 'room' ? this.roomBuffer : this.hallBuffer;
+      this.convolverNode.connect(this.wetGainNode);
+      this.wetGainNode.connect(this.audioContext.destination);
+      this.wetGainNode.gain.value = mode === 'room' ? 0.4 : 0.6; // Reverb level
+    }
+  }
+
+  private generateImpulse(duration: number, decay: number): AudioBuffer {
+    if (!this.audioContext) throw new Error("No Context");
+    const sampleRate = this.audioContext.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = this.audioContext.createBuffer(2, length, sampleRate);
+    
+    for (let channel = 0; channel < 2; channel++) {
+        const data = impulse.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+            // White noise with exponential decay
+            const noise = (Math.random() * 2 - 1);
+            const k = i / length;
+            // Add some simple delay reflections for "early reflections" simulation
+            // This is a very basic synthetic reverb
+            data[i] = noise * Math.pow(1 - k, decay);
+        }
+    }
+    return impulse;
   }
 }

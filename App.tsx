@@ -43,6 +43,7 @@ function App() {
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmType>(AlarmType.DIGITAL);
   const [metronomeSound, setMetronomeSound] = useState<MetronomeSoundType>(MetronomeSoundType.DIGITAL);
   const [metronomeVisualMode, setMetronomeVisualMode] = useState<MetronomeVisualMode>(MetronomeVisualMode.DOTS);
+  const [metronomeVolume, setMetronomeVolume] = useState(1.0);
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true);
   const [instrumentKey, setInstrumentKey] = useState<InstrumentKey>(InstrumentKey.Bb);
 
@@ -96,7 +97,18 @@ function App() {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        const { alarm, wakeLock, practice, break: breakTime, bpm, key, metronomeSound: savedMetaSound, metronomeVisual: savedVisual } = JSON.parse(savedSettings);
+        const { 
+          alarm, 
+          wakeLock, 
+          practice, 
+          break: breakTime, 
+          bpm, 
+          key, 
+          metronomeSound: savedMetaSound, 
+          metronomeVisual: savedVisual,
+          metronomeVolume: savedVolume 
+        } = JSON.parse(savedSettings);
+
         if (alarm) setSelectedAlarm(alarm);
         if (typeof wakeLock === 'boolean') setWakeLockEnabled(wakeLock);
         if (typeof practice === 'number') setPracticeDuration(practice);
@@ -104,6 +116,7 @@ function App() {
         if (key) setInstrumentKey(key);
         if (savedMetaSound) setMetronomeSound(savedMetaSound);
         if (savedVisual) setMetronomeVisualMode(savedVisual);
+        if (typeof savedVolume === 'number') setMetronomeVolume(savedVolume);
         
         if (bpm) {
           setBpmSettings(bpm);
@@ -128,9 +141,10 @@ function App() {
       bpm: bpmSettings,
       key: instrumentKey,
       metronomeSound: metronomeSound,
-      metronomeVisual: metronomeVisualMode
+      metronomeVisual: metronomeVisualMode,
+      metronomeVolume: metronomeVolume
     }));
-  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey, metronomeSound, metronomeVisualMode]);
+  }, [selectedAlarm, wakeLockEnabled, practiceDuration, breakDuration, bpmSettings, instrumentKey, metronomeSound, metronomeVisualMode, metronomeVolume]);
 
   // Sync Metronome Sound Settings
   useEffect(() => {
@@ -138,6 +152,13 @@ function App() {
       metronomeEngine.current.setSoundType(metronomeSound);
     }
   }, [metronomeSound]);
+
+  // Sync Metronome Volume
+  useEffect(() => {
+    if (metronomeEngine.current) {
+      metronomeEngine.current.setVolume(metronomeVolume);
+    }
+  }, [metronomeVolume]);
 
   // If settings change while IDLE, update display immediately
   useEffect(() => {
@@ -312,6 +333,7 @@ function App() {
     // This destroys the old stuck context and creates a brand new one immediately
     if (metronomeEngine.current) {
         metronomeEngine.current.hardReset();
+        metronomeEngine.current.setVolume(metronomeVolume); // Re-apply volume after reset
     }
     if (alarmEngine.current) {
         alarmEngine.current.hardReset();
@@ -435,7 +457,7 @@ function App() {
         <div className="mt-2 relative w-full flex justify-center">
           
           {/* Left Side: Recorder */}
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
              <Recorder />
           </div>
 
@@ -646,6 +668,23 @@ function App() {
                        >
                           <Sparkles size={10} fill="currentColor" /> Both
                        </button>
+                    </div>
+                 </div>
+
+                 {/* Volume Control */}
+                 <div className="flex items-center justify-between border-b border-zinc-700/50 pb-4">
+                    <span className="text-zinc-300 text-sm">Volume</span>
+                    <div className="flex items-center gap-3 w-1/2">
+                       <Volume2 size={16} className="text-zinc-500" />
+                       <input 
+                         type="range" 
+                         min="0" 
+                         max="300" 
+                         step="10"
+                         value={metronomeVolume * 100} 
+                         onChange={(e) => setMetronomeVolume(parseInt(e.target.value) / 100)}
+                         className="w-full accent-brass-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"
+                       />
                     </div>
                  </div>
 
